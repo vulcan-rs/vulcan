@@ -1,0 +1,23 @@
+[workspace]
+members = [
+  ".",
+  "arp",
+  "bootp",
+  "cli",
+  "dhcp",
+  "radvd",
+  "binbuf"
+]
+
+[workspace.dependencies]
+binum = { path = "../../Techassi/binum" }
+
+tokio = { version = "1.21.2", features = ["net", "macros"] }
+rand = "0.8.5"
+
+[package]
+name = "vulcan"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
