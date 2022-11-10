@@ -219,3 +219,79 @@ impl<'a> ReadBuffer<'a> {
         self.read_slice(len)
     }
 }
+
+/// All types which implement this trait can be constructed by reading from
+/// a [`ReadBuffer`]. An implementation for all sized unsigned integers is
+/// provided.
+///
+/// ### Example
+///
+/// ```
+/// use binbuf::{ReadBuffer, Readable};
+///
+/// let d = vec![69, 88, 65, 77, 80, 76, 69, 33];
+/// let mut b = ReadBuffer::new(d.as_slice());
+/// assert_eq!(u16::read(&mut b), Ok(17752));
+/// ```
+pub trait Readable: Sized {
+    /// Read [`Self`] from a [`ReadBuffer`].
+    fn read(buf: &mut ReadBuffer) -> ReadBufferResult<Self>;
+}
+
+pub trait ReadableMulti: Readable + Default + Copy {
+    /// Read multiple [`Self`] from a [`ReadBuffer`]. A default implementation
+    /// is provided.
+    fn read_multi<const T: usize>(buf: &mut ReadBuffer) -> ReadBufferResult<[Self; T]> {
+        let mut arr = [Self::default(); T];
+
+        for i in 0..T {
+            arr[i] = Self::read(buf)?;
+        }
+
+        Ok(arr)
+    }
+}
+
+impl Readable for u8 {
+    fn read(buf: &mut ReadBuffer) -> ReadBufferResult<Self> {
+        buf.pop()
+    }
+}
+
+impl ReadableMulti for u8 {}
+
+impl Readable for u16 {
+    fn read(buf: &mut ReadBuffer) -> ReadBufferResult<Self> {
+        let b = buf.read_slice(2)?;
+        return Ok(u16::from_be_bytes(b.try_into().unwrap()));
+    }
+}
+
+impl ReadableMulti for u16 {}
+
+impl Readable for u32 {
+    fn read(buf: &mut ReadBuffer) -> ReadBufferResult<Self> {
+        let b = buf.read_slice(4)?;
+        return Ok(u32::from_be_bytes(b.try_into().unwrap()));
+    }
+}
+
+impl ReadableMulti for u32 {}
+
+impl Readable for u64 {
+    fn read(buf: &mut ReadBuffer) -> ReadBufferResult<Self> {
+        let b = buf.read_slice(8)?;
+        return Ok(u64::from_be_bytes(b.try_into().unwrap()));
+    }
+}
+
+impl ReadableMulti for u64 {}
+
+impl Readable for u128 {
+    fn read(buf: &mut ReadBuffer) -> ReadBufferResult<Self> {
+        let b = buf.read_slice(16)?;
+        return Ok(u128::from_be_bytes(b.try_into().unwrap()));
+    }
+}
+
+impl ReadableMulti for u128 {}
