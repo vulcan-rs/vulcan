@@ -1,5 +1,17 @@
 use crate::BufferError;
 
+pub trait ToReadBuffer<'a> {
+    fn new(buf: &'a [u8]) -> Self;
+    fn pop(&mut self) -> ReadBufferResult<u8>;
+    fn skip(&mut self) -> ReadBufferResult<()>;
+    fn peek(&self) -> Option<u8>;
+    fn offset(&self) -> usize;
+    fn len(&self) -> usize;
+    fn is_empty(&self) -> bool;
+    fn read_slice(&mut self, nbytes: usize) -> ReadBufferResult<&'a [u8]>;
+    fn read_vec(&mut self, nbytes: usize) -> ReadBufferResult<Vec<u8>>;
+}
+
 pub struct ReadBuffer<'a> {
     buf: &'a [u8],
     rest: &'a [u8],
@@ -7,7 +19,7 @@ pub struct ReadBuffer<'a> {
 
 pub type ReadBufferResult<T> = Result<T, BufferError>;
 
-impl<'a> ReadBuffer<'a> {
+impl<'a> ToReadBuffer<'a> for ReadBuffer<'a> {
     /// Create a new [`ReadBuffer`] based on a slice of `u8`s.
     ///
     /// ### Example
@@ -19,7 +31,7 @@ impl<'a> ReadBuffer<'a> {
     /// let b = ReadBuffer::new(d.as_slice());
     /// assert_eq!(b.len(), 8);
     /// ```
-    pub fn new(buf: &'a [u8]) -> Self {
+    fn new(buf: &'a [u8]) -> Self {
         ReadBuffer { buf, rest: buf }
     }
 
@@ -38,7 +50,7 @@ impl<'a> ReadBuffer<'a> {
     /// assert_eq!(b.pop(), Ok(88));
     /// assert_eq!(b.pop(), Err(BufferError::BufTooShort));
     /// ```
-    pub fn pop(&mut self) -> ReadBufferResult<u8> {
+    fn pop(&mut self) -> ReadBufferResult<u8> {
         if let Some((first, rest)) = self.rest.split_first() {
             self.rest = rest;
             return Ok(*first);
@@ -50,7 +62,7 @@ impl<'a> ReadBuffer<'a> {
     /// Pop off a byte from the front of the buffer but do not return the
     /// popped off byte. This is rarely useful other than in combination with
     /// `peek()`.
-    pub fn skip(&mut self) -> ReadBufferResult<()> {
+    fn skip(&mut self) -> ReadBufferResult<()> {
         if let Err(err) = self.pop() {
             return Err(err);
         }
@@ -73,7 +85,7 @@ impl<'a> ReadBuffer<'a> {
     /// assert_eq!(b.pop(), Ok(69));
     /// assert_eq!(b.peek(), None);
     /// ```
-    pub fn peek(&self) -> Option<u8> {
+    fn peek(&self) -> Option<u8> {
         match self.rest.first() {
             Some(b) => Some(*b),
             None => None,
@@ -93,7 +105,7 @@ impl<'a> ReadBuffer<'a> {
     /// assert_eq!(b.pop(), Ok(69));
     /// assert_eq!(b.offset(), 1);
     /// ```
-    pub fn offset(&self) -> usize {
+    fn offset(&self) -> usize {
         return self.buf.len() - self.rest.len();
     }
 
@@ -111,7 +123,7 @@ impl<'a> ReadBuffer<'a> {
     /// assert_eq!(b.pop(), Ok(69));
     /// assert_eq!(b.len(), 1);
     /// ```
-    pub fn len(&self) -> usize {
+    fn len(&self) -> usize {
         return self.rest.len();
     }
 
@@ -129,7 +141,7 @@ impl<'a> ReadBuffer<'a> {
     /// assert_eq!(b.pop(), Ok(69));
     /// assert_eq!(b.is_empty(), true);
     /// ```
-    pub fn is_empty(&self) -> bool {
+    fn is_empty(&self) -> bool {
         return self.rest.len() == 0;
     }
 
@@ -148,7 +160,7 @@ impl<'a> ReadBuffer<'a> {
     /// assert_eq!(b.read_slice(4), Ok([69, 88, 65, 77].as_slice()));
     /// assert_eq!(b.len(), 4);
     /// ```
-    pub fn read_slice(&mut self, nbytes: usize) -> ReadBufferResult<&'a [u8]> {
+    fn read_slice(&mut self, nbytes: usize) -> ReadBufferResult<&'a [u8]> {
         if nbytes > self.len() {
             return Err(BufferError::BufTooShort);
         }
@@ -171,10 +183,12 @@ impl<'a> ReadBuffer<'a> {
     /// assert_eq!(b.read_vec(4), Ok(vec![69, 88, 65, 77]));
     /// assert_eq!(b.len(), 4);
     /// ```
-    pub fn read_vec(&mut self, nbytes: usize) -> ReadBufferResult<Vec<u8>> {
+    fn read_vec(&mut self, nbytes: usize) -> ReadBufferResult<Vec<u8>> {
         self.read_slice(nbytes).map(ToOwned::to_owned)
     }
+}
 
+impl<'a> ReadBuffer<'a> {
     /// Read a character string with an optional maximum length of `max_len`.
     /// A character string is composed of one byte indicating the number of
     /// bytes the string is made of. The string bytes then follow.
