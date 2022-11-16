@@ -1,6 +1,6 @@
 use std::net::Ipv4Addr;
 
-use bootp::Client;
+use dhcp::Client;
 
 #[tokio::test]
 async fn test_client() {

@@ -69,6 +69,8 @@ impl Client {
         // Construct a new BOOTP message with default values
         let msg = Message::new(0, 0, 0);
 
+        println!("{}", msg);
+
         // Write finished message to the buffer
         if let Err(_) = msg.write(&mut buf) {
             return Err(ClientError::new("Failed to write message to buffer"));
@@ -81,7 +83,7 @@ impl Client {
             ));
         }
 
-        println!("{:?}", buf.bytes());
+        println!("{:02X?}", buf.bytes());
 
         Ok(())
     }

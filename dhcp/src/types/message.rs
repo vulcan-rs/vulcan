@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use binbuf::{
     ReadBuffer, ReadBufferResult, Readable, ReadableMulti, ToReadBuffer, WriteBuffer,
     WriteBufferResult, Writeable,
@@ -67,6 +69,28 @@ pub struct Message {
     pub vend: Vec<u8>,
 }
 
+impl Display for Message {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "MSG TY: {:02x?}; HW TY: {:02x?}; HW ADDR LEN: {:02x?}; HOPS: {:02x?}; ID: {:02x?}; SECS: {:02x?}; FLAGS: {:02x?}\n\
+            ; Client IP: {:08x?}\n\
+            ; Your (client) IP: {:08x?}\n\
+            ; Next server IP: {:08x?}\n\
+            ; Relay agent IP: {:08x?}\n\
+            ; Client MAC addr: {:016x?}\n\
+            ; Server host name: {:02x?}",
+            self.opcode, self.htype, self.hlen, self.hops, self.xid, self.secs, self.flags,
+            self.ciaddr,
+            self.yiaddr,
+            self.siaddr,
+            self.giaddr,
+            self.chaddr,
+            self.sname
+        )
+    }
+}
+
 impl Default for Message {
     fn default() -> Self {
         Self {
@@ -82,9 +106,9 @@ impl Default for Message {
             siaddr: 0,
             giaddr: 0,
             chaddr: 0,
-            sname: Vec::new(),
-            file: Vec::new(),
-            vend: Vec::new(),
+            sname: vec![0; 64],
+            file: vec![0; 128],
+            vend: vec![0; 64],
         }
     }
 }
