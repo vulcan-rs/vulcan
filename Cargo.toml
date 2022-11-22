@@ -1,23 +1,15 @@
 [workspace]
 members = [
-  ".",
-  "arp",
-  "bootp",
-  "cli",
-  "dhcp",
-  "radvd",
-  "binbuf"
+  "bins/vulcan-dhcpd",
+  "bins/vulcan-cli",
+  "libs/binbuf",
+  "libs/radvd",
+  "libs/dhcp"
 ]
 
 [workspace.dependencies]
+tokio = { version = "1.21.2", features = ["net", "macros", "rt", "time"] }
 binum = { path = "../../Techassi/binum" }
-
-tokio = { version = "1.21.2", features = ["net", "macros"] }
+binbuf = { path = "./libs/binbuf" }
+thiserror = "1.0.37"
 rand = "0.8.5"
-
-[package]
-name = "vulcan"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
