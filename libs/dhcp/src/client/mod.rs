@@ -111,17 +111,18 @@ impl Client {
             ));
         }
 
-        println!("{:02X?}", buf.bytes());
+        // println!("{:02X?}", buf.bytes());
 
         // Off to the wire the bytes go
-        sock.send_to(buf.bytes(), (dest_addr, 67)).await?;
+        let n = sock.send_to(buf.bytes(), (dest_addr, 67)).await?;
+        println!("Bytes written: {}", n);
 
         // Start the receive loop. We try a certain amount of times until we
         // give up. After giving up, the caller needs to handle the DHCP
         // request failure. This usually involves to send a new DHCP request
         // after a few seconds / minutes.
 
-        loop {}
+        // loop {}
 
         Ok(())
     }

@@ -32,7 +32,7 @@ pub struct Header {
 impl Default for Header {
     fn default() -> Self {
         Self {
-            opcode: constants::BOOTP_OPCODE_REQUEST,
+            opcode: constants::DHCP_OPCODE_REQUEST,
             htype: constants::HARDWARE_ADDR_TYPE_ETHERNET,
             hlen: constants::HARDWARE_ADDR_LEN_ETHERNET,
             hops: 0,

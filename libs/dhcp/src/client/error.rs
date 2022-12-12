@@ -4,7 +4,7 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum ClientError {
-    #[error("IO error")]
+    #[error("IO error {0}")]
     IO(#[from] std::io::Error),
 
     #[error("Bind error: Failed to create and bind UDP socket after {0:?}")]

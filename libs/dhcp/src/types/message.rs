@@ -2,14 +2,17 @@ use std::fmt::Display;
 
 use binbuf::prelude::*;
 
-use crate::types::{Addrs, Header};
+use crate::{
+    constants,
+    types::{Addrs, Header},
+};
 
-/// [`Message`] describes a complete BOOTP message. The same packet field
+/// [`Message`] describes a complete DHCP message. The same packet field
 /// layout is used in both directions.
 ///
 /// ### See
 ///
-/// RFC 951 - Section 3 - Packet Format: https://datatracker.ietf.org/doc/html/rfc951#section-3
+/// RFC 2131 - Section 2 - Protocol Summary: https://datatracker.ietf.org/doc/html/rfc2131#section-2
 #[derive(Debug)]
 pub struct Message {
     /// Header fields like the opcode, transaction id and additional flags.
@@ -26,11 +29,16 @@ pub struct Message {
     /// (128 octets).
     pub file: Vec<u8>,
 
+    /// Originally this was called 'vendor extensions' in the BOOTP RFC. The
+    /// RFC states:
+    ///
     /// Optional vendor-specific area, e.g. could be hardware type/serial on
     /// request, or 'capability' / remote file system handle on reply. This
     /// info may be set aside for use by a third phase bootstrap or kernel
     /// (64 octets).
-    pub vend: Vec<u8>,
+    ///
+    /// The DHCP RFC renames this filed to 'options'.
+    pub options: Vec<u8>,
 }
 
 impl Display for Message {
@@ -62,7 +70,7 @@ impl Default for Message {
             addrs: Addrs::default(),
             sname: vec![0; 64],
             file: vec![0; 128],
-            vend: vec![0; 64],
+            options: vec![0; 64],
         }
     }
 }
@@ -77,14 +85,22 @@ impl Readable for Message {
         let addrs = Addrs::read::<E>(buf)?;
         let sname = buf.read_vec(64)?;
         let file = buf.read_vec(128)?;
-        let vend = buf.read_vec(64)?;
+
+        match buf.peekn::<4>() {
+            Some(m) if m == constants::DHCP_MAGIC_COOKIE_ARR => buf.skipn(4)?,
+            Some(_) => return Err(BufferError::InvalidData),
+            None => return Err(BufferError::BufTooShort),
+        };
+
+        // TODO (Techassi): Read DHCP options here
+        let options = buf.read_vec(60)?;
 
         Ok(Self {
             header,
             addrs,
             sname,
             file,
-            vend,
+            options,
         })
     }
 }
@@ -95,7 +111,7 @@ impl Writeable for Message {
         self.addrs.write::<E>(buf)?;
         self.sname.write::<E>(buf)?;
         self.file.write::<E>(buf)?;
-        self.vend.write::<E>(buf)
+        self.options.write::<E>(buf)
     }
 }
 
