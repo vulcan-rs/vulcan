@@ -11,7 +11,7 @@ pub enum ClientError {
     BindTimeout(time::Duration),
 
     #[error("Buffer error")]
-    BufError(#[from] binbuf::BufferError),
+    BufError(#[from] binbuf::error::BufferError),
 
     #[error("Invalid message format or length: {0}")]
     Invalid(String),

@@ -1,15 +1,52 @@
 use std::{net::Ipv4Addr, time};
 
-use crate::{constants, types::message::Message};
-use binbuf::{ToWriteBuffer, WriteBuffer, Writeable};
 use tokio::{
     net::{ToSocketAddrs, UdpSocket},
     time::timeout,
 };
 
+use binbuf::prelude::*;
+
+use crate::{constants, types::Message};
+
 mod error;
 
 pub use error::ClientError;
+
+pub struct ClientBuilder {
+    /// Duration before the binding process of the socket times out.
+    bind_timeout: time::Duration,
+
+    /// Duration before the read process of DHCP answers times out.
+    read_timeout: time::Duration,
+
+    /// Duration before the write process of DHCP requests times out.
+    write_timeout: time::Duration,
+}
+
+impl Default for ClientBuilder {
+    fn default() -> Self {
+        Self {
+            bind_timeout: time::Duration::from_secs(2),
+            read_timeout: time::Duration::from_secs(2),
+            write_timeout: time::Duration::from_secs(2),
+        }
+    }
+}
+
+impl ClientBuilder {
+    pub fn build(&self) -> Client {
+        Client {
+            bind_timeout: self.bind_timeout,
+            read_timeout: self.read_timeout,
+            write_timeout: self.write_timeout,
+        }
+    }
+
+    pub fn with_bind_timeout(&mut self, bind_timeout: time::Duration) {
+        self.bind_timeout = bind_timeout
+    }
+}
 
 pub struct Client {
     /// Duration before the binding process of the socket times out.
@@ -63,7 +100,7 @@ impl Client {
         let mut buf = WriteBuffer::new();
 
         // Write finished message to the buffer
-        if let Err(err) = msg.write(&mut buf) {
+        if let Err(err) = msg.write_be(&mut buf) {
             return Err(ClientError::BufError(err));
         }
 
@@ -79,42 +116,14 @@ impl Client {
         // Off to the wire the bytes go
         sock.send_to(buf.bytes(), (dest_addr, 67)).await?;
 
+        // Start the receive loop. We try a certain amount of times until we
+        // give up. After giving up, the caller needs to handle the DHCP
+        // request failure. This usually involves to send a new DHCP request
+        // after a few seconds / minutes.
+
+        loop {}
+
         Ok(())
-    }
-}
-
-pub struct ClientBuilder {
-    /// Duration before the binding process of the socket times out.
-    bind_timeout: time::Duration,
-
-    /// Duration before the read process of DHCP answers times out.
-    read_timeout: time::Duration,
-
-    /// Duration before the write process of DHCP requests times out.
-    write_timeout: time::Duration,
-}
-
-impl Default for ClientBuilder {
-    fn default() -> Self {
-        Self {
-            bind_timeout: time::Duration::from_secs(2),
-            read_timeout: time::Duration::from_secs(2),
-            write_timeout: time::Duration::from_secs(2),
-        }
-    }
-}
-
-impl ClientBuilder {
-    pub fn build(&self) -> Client {
-        Client {
-            bind_timeout: self.bind_timeout,
-            read_timeout: self.read_timeout,
-            write_timeout: self.write_timeout,
-        }
-    }
-
-    pub fn with_bind_timeout(&mut self, bind_timeout: time::Duration) {
-        self.bind_timeout = bind_timeout
     }
 }
 
