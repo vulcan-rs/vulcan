@@ -1,0 +1,11 @@
+[config]
+default_to_workspace = false
+
+[tasks.build-dhcp]
+command = "cargo"
+args = ["build" , "-p", "vulcan-dhcp"]
+
+[tasks.run-dhcp]
+command = "sudo"
+args = ["./target/debug/vulcan-dhcp"]
+dependencies = ["build-dhcp"]
