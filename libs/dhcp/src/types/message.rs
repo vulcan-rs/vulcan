@@ -16,18 +16,18 @@ use crate::{
 #[derive(Debug)]
 pub struct Message {
     /// Header fields like the opcode, transaction id and additional flags.
-    pub header: Header,
+    header: Header,
 
     /// Different IP and hardware addresses.
-    pub addrs: Addrs,
+    addrs: Addrs,
 
     /// Optional server host name, null terminated string (64 octets).
-    pub sname: Vec<u8>,
+    sname: Vec<u8>,
 
     /// Boot file name, null terminated string. 'Generic' name or null in
     /// BOOTREQUEST, fully qualified directory-path name in bootreply
     /// (128 octets).
-    pub file: Vec<u8>,
+    file: Vec<u8>,
 
     /// Originally this was called 'vendor extensions' in the BOOTP RFC. The
     /// RFC states:
@@ -38,7 +38,7 @@ pub struct Message {
     /// (64 octets).
     ///
     /// The DHCP RFC renames this filed to 'options'.
-    pub options: Vec<u8>,
+    options: Vec<u8>,
 }
 
 impl Display for Message {
@@ -76,11 +76,9 @@ impl Default for Message {
 }
 
 impl Readable for Message {
-    const SUPPORTED_ENDIANNESS: SupportedEndianness = SupportedEndianness::BigEndian;
+    type Error = BufferError;
 
-    fn read<E: Endianness>(buf: &mut ReadBuffer) -> ReadBufferResult<Self> {
-        Self::supports::<E>()?;
-
+    fn read<E: Endianness>(buf: &mut impl ToReadBuffer) -> Result<Self, Self::Error> {
         let header = Header::read::<E>(buf)?;
         let addrs = Addrs::read::<E>(buf)?;
         let sname = buf.read_vec(64)?;
@@ -106,34 +104,37 @@ impl Readable for Message {
 }
 
 impl Writeable for Message {
-    fn write<E: binbuf::Endianness>(&self, buf: &mut WriteBuffer) -> WriteBufferResult {
+    type Error = BufferError;
+
+    fn write<E: Endianness>(&self, buf: &mut impl ToWriteBuffer) -> Result<usize, Self::Error> {
         self.header.write::<E>(buf)?;
         self.addrs.write::<E>(buf)?;
         self.sname.write::<E>(buf)?;
         self.file.write::<E>(buf)?;
+
+        // Write magic cookie
+        buf.write_slice(constants::DHCP_MAGIC_COOKIE_ARR.as_slice())?;
+
         self.options.write::<E>(buf)
     }
 }
 
 impl Message {
-    /// Create a new BOOTP [`Message`]. This automatically generates a random
-    /// transaction ID (xid). The remaining fields are filled with the default
-    /// values specified by the [`Default`] implementation.
-    pub fn new(secs: u16, ciaddr: u32, chaddr: u128) -> Self {
-        let xid: u32 = rand::random();
+    /// Create a new DHCP [`Message`]. Internally this creates a default header
+    /// with a random transaction ID and then calls [`Self::new_with_header`].
+    pub fn new() -> Self {
+        let header = Header::new();
+        return Self::new_with_header(header);
+    }
 
+    /// Create a new DHCP [`Message`] with the provided header. All other
+    /// fields will use the default values.
+    pub fn new_with_header(header: Header) -> Self {
         Self {
-            header: Header {
-                xid,
-                secs,
-                ..Default::default()
-            },
-            addrs: Addrs {
-                ciaddr,
-                chaddr,
-                ..Default::default()
-            },
+            header,
             ..Default::default()
         }
     }
+
+    pub fn set_opcode() {}
 }

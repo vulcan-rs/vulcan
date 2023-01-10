@@ -32,11 +32,9 @@ impl Default for Addrs {
 }
 
 impl Readable for Addrs {
-    const SUPPORTED_ENDIANNESS: SupportedEndianness = SupportedEndianness::BigEndian;
+    type Error = BufferError;
 
-    fn read<E: Endianness>(buf: &mut ReadBuffer) -> ReadBufferResult<Self> {
-        Self::supports::<E>()?;
-
+    fn read<E: Endianness>(buf: &mut impl ToReadBuffer) -> Result<Self, Self::Error> {
         let [ciaddr, yiaddr, siaddr, giaddr] = u32::read_multi_be(buf)?;
         let chaddr = u128::read_be(buf)?;
 
@@ -51,7 +49,9 @@ impl Readable for Addrs {
 }
 
 impl Writeable for Addrs {
-    fn write<E: Endianness>(&self, buf: &mut WriteBuffer) -> WriteBufferResult {
+    type Error = BufferError;
+
+    fn write<E: Endianness>(&self, buf: &mut impl ToWriteBuffer) -> Result<usize, Self::Error> {
         let mut n = 0;
 
         n += self.ciaddr.write_be(buf)?;

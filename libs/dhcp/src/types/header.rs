@@ -1,11 +1,11 @@
 use binbuf::prelude::*;
 
-use crate::constants;
+use crate::{constants, types::OpCode};
 
 #[derive(Debug)]
 pub struct Header {
     /// Packet op code / message type (1 for BOOTREQUEST and 2 for BOOTREPLY).
-    pub opcode: u8,
+    pub opcode: OpCode,
 
     /// Hardware address type, see ARP section in "Assigned Numbers" RFC.
     pub htype: u8,
@@ -32,7 +32,7 @@ pub struct Header {
 impl Default for Header {
     fn default() -> Self {
         Self {
-            opcode: constants::DHCP_OPCODE_REQUEST,
+            opcode: OpCode::BootRequest,
             htype: constants::HARDWARE_ADDR_TYPE_ETHERNET,
             hlen: constants::HARDWARE_ADDR_LEN_ETHERNET,
             hops: 0,
@@ -44,12 +44,11 @@ impl Default for Header {
 }
 
 impl Readable for Header {
-    const SUPPORTED_ENDIANNESS: SupportedEndianness = SupportedEndianness::BigEndian;
+    type Error = BufferError;
 
-    fn read<E: Endianness>(buf: &mut ReadBuffer) -> ReadBufferResult<Self> {
-        Self::supports::<E>()?;
-
-        let [opcode, htype, hlen, hops] = u8::read_multi::<E, 4>(buf)?;
+    fn read<E: Endianness>(buf: &mut impl ToReadBuffer) -> Result<Self, Self::Error> {
+        let opcode = OpCode::read::<E>(buf)?;
+        let [htype, hlen, hops] = u8::read_multi::<E, 3>(buf)?;
         let xid = u32::read::<E>(buf)?;
         let secs = u16::read::<E>(buf)?;
         let flags = u16::read::<E>(buf)?;
@@ -67,7 +66,9 @@ impl Readable for Header {
 }
 
 impl Writeable for Header {
-    fn write<E: Endianness>(&self, buf: &mut WriteBuffer) -> WriteBufferResult {
+    type Error = BufferError;
+
+    fn write<E: Endianness>(&self, buf: &mut impl ToWriteBuffer) -> Result<usize, Self::Error> {
         let mut n = 0;
 
         n += self.opcode.write::<E>(buf)?;
@@ -79,5 +80,16 @@ impl Writeable for Header {
         n += self.flags.write::<E>(buf)?;
 
         Ok(n)
+    }
+}
+
+impl Header {
+    pub fn new() -> Self {
+        let mut header = Self::default();
+
+        let xid: u32 = rand::random();
+        header.xid = xid;
+
+        header
     }
 }
