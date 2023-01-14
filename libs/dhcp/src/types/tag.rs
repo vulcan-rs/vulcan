@@ -544,23 +544,266 @@ pub enum OptionTag {
     VendorSpecificInformation,
 
     /// #### NetBIOS over TCP/IP Name Server Option
+    ///
+    /// The NetBIOS name server (NBNS) option specifies a list of
+    /// [RFC 1001][1]/1002 [[19][2]] [[20][3]] NBNS name servers listed in
+    /// order of preference.
+    ///
+    /// See [8.5. NetBIOS over TCP/IP Name Server Option][4]
+    ///
+    /// [1]: https://datatracker.ietf.org/doc/html/rfc1001
+    /// [2]: https://datatracker.ietf.org/doc/html/rfc1533#ref-19
+    /// [3]: https://datatracker.ietf.org/doc/html/rfc1533#ref-20
+    /// [4]: https://datatracker.ietf.org/doc/html/rfc1533#section-8.5
     NetbiosNameServer,
+
+    /// #### NetBIOS over TCP/IP Datagram Distribution Server Option
+    ///
+    /// The NetBIOS datagram distribution server (NBDD) option specifies a list
+    /// of [RFC 1001][1]/1002 NBDD servers listed in order of preference.
+    ///
+    /// See [8.6. NetBIOS over TCP/IP Datagram Distribution Server Option][2]
+    ///
+    /// [1]: https://datatracker.ietf.org/doc/html/rfc1001
+    /// [2]:https://datatracker.ietf.org/doc/html/rfc1533#section-8.6
     NetbiosDatagramDistributionServer,
+
+    /// #### NetBIOS over TCP/IP Node Type Option
+    ///
+    /// The NetBIOS node type option allows NetBIOS over TCP/IP clients which
+    /// are configurable to be configured as described in [RFC 1001][1]/1002.
+    /// The value is specified as a single octet which identifies the client
+    /// type as follows:
+    ///
+    /// - `0x1` -  B-node
+    /// - `0x2` -  P-node
+    /// - `0x4` -  M-node
+    /// - `0x8` -  H-node
+    ///
+    /// In the above chart, the notation '0x' indicates a number in base-16
+    /// (hexadecimal).
+    ///
+    /// See [8.7. NetBIOS over TCP/IP Node Type Option][2]
+    ///
+    /// [1]: https://datatracker.ietf.org/doc/html/rfc1001
+    /// [2]: https://datatracker.ietf.org/doc/html/rfc1533#section-8.7
     NetbiosNodeType,
+
+    /// #### NetBIOS over TCP/IP Scope Option
+    ///
+    /// The NetBIOS scope option specifies the NetBIOS over TCP/IP scope
+    /// parameter for the client as specified in [RFC 1001][1]/1002. See
+    /// [[19][2]], [[20][3]], and [[8][4]] for character-set restrictions.
+    ///
+    /// See [8.8. NetBIOS over TCP/IP Scope Option][5]
+    ///
+    /// [1]: https://datatracker.ietf.org/doc/html/rfc1001
+    /// [2]: https://datatracker.ietf.org/doc/html/rfc1533#ref-19
+    /// [3]: https://datatracker.ietf.org/doc/html/rfc1533#ref-20
+    /// [4]: https://datatracker.ietf.org/doc/html/rfc1533#ref-8
+    /// [5]: https://datatracker.ietf.org/doc/html/rfc1533#section-8.8
     NetbiosScope,
+
+    /// #### X Window System Font Server Option
+    ///
+    /// This option specifies a list of X Window System [[21][1]] Font servers
+    /// available to the client. Servers SHOULD be listed in order of
+    /// preference.
+    ///
+    /// See [8.9. X Window System Font Server Option][2]
+    ///
+    /// [1]: https://datatracker.ietf.org/doc/html/rfc1533#ref-21
+    /// [2]: https://datatracker.ietf.org/doc/html/rfc1533#section-8.9
     XWindowSystemFontServer,
+
+    /// #### X Window System Display Manager Option
+    ///
+    /// This option specifies a list of IP addresses of systems that are
+    /// running the X Window System Display Manager and are available to
+    /// the client.
+    ///
+    /// Addresses SHOULD be listed in order of preference.
     XWindowSystemDisplayManager,
+
+    /// #### Requested IP Address
+    ///
+    /// This option is used in a client request (DHCPDISCOVER) to allow the
+    /// client to request that a particular IP address be assigned.
+    ///
+    /// See [9.1. Requested IP Address][1]
+    ///
+    /// [1]: https://datatracker.ietf.org/doc/html/rfc1533#section-9.1
     RequestedIpAddr,
+
+    /// #### IP Address Lease Time
+    ///
+    /// This option is used in a client request (DHCPDISCOVER or DHCPREQUEST)
+    /// to allow the client to request a lease time for the IP address. In a
+    /// server reply (DHCPOFFER), a DHCP server uses this option to specify the
+    /// lease time it is willing to offer.
+    ///
+    /// The time is in units of seconds, and is specified as a 32-bit unsigned
+    /// integer.
+    ///
+    /// See [9.2. IP Address Lease Time][1]
+    ///
+    /// [1]: https://datatracker.ietf.org/doc/html/rfc1533#section-9.2
     IpAddrLeaseTime,
+
+    /// #### Option Overload
+    ///
+    /// This option is used to indicate that the DHCP "sname" or "file" fields
+    /// are being overloaded by using them to carry DHCP options. A DHCP server
+    /// inserts this option if the returned parameters will exceed the usual
+    /// space allotted for options.
+    ///
+    /// If this option is present, the client interprets the specified
+    /// additional fields after it concludes interpretation of the standard
+    /// option fields.
+    ///
+    /// The code for this option is 52, and its length is 1. Legal values
+    /// for this option are:
+    ///
+    /// - `1` - the "file" field is used to hold options
+    /// - `2` - the "sname" field is used to hold options
+    /// - `3` - both fields are used to hold options
+    ///
+    /// See [9.3. Option Overload][1]
+    ///
+    /// [1]: https://datatracker.ietf.org/doc/html/rfc1533#section-9.3
     OptionOverload,
+
+    /// #### DHCP Message Type
+    ///
+    /// This option is used to convey the type of the DHCP message. The code
+    /// for this option is 53, and its length is 1. Legal values for this
+    /// option are:
+    ///
+    /// - `1` - DHCPDISCOVER
+    /// - `2` - DHCPOFFER
+    /// - `3` - DHCPREQUEST
+    /// - `4` - DHCPDECLINE
+    /// - `5` - DHCPACK
+    /// - `6` - DHCPNAK
+    /// - `7` - DHCPRELEASE
+    ///
+    /// See [9.4. DHCP Message Type][1]
+    ///
+    /// [1]: https://datatracker.ietf.org/doc/html/rfc1533#section-9.4
     DhcpMessageType,
+
+    /// #### Server Identifier
+    ///
+    /// This option is used in DHCPOFFER and DHCPREQUEST messages, and may
+    /// optionally be included in the DHCPACK and DHCPNAK messages. DHCP
+    /// servers include this option in the DHCPOFFER in order to allow the
+    /// client to distinguish between lease offers. DHCP clients indicate which
+    /// of several lease offers is being accepted by including this option in a
+    /// DHCPREQUEST message.
+    ///
+    /// The identifier is the IP address of the selected server.
+    ///
+    /// See [9.5. Server Identifier][1]
+    ///
+    /// [1]: https://datatracker.ietf.org/doc/html/rfc1533#section-9.5
     ServerIdentifier,
+
+    /// #### Parameter Request List
+    ///
+    /// This option is used by a DHCP client to request values for specified
+    /// configuration parameters. The list of requested parameters is
+    /// specified as n octets, where each octet is a valid DHCP option code
+    /// as defined in this document.
+    ///
+    /// The client MAY list the options in order of preference. The DHCP server
+    /// is not required to return the options in the requested order, but MUST
+    /// try to insert the requested options in the order requested by the
+    /// client.
+    ///
+    /// See [9.6. Parameter Request List][1]
+    ///
+    /// [1]: https://datatracker.ietf.org/doc/html/rfc1533#section-9.6
     ParameterRequestList,
+
+    /// #### Message
+    ///
+    /// This option is used by a DHCP server to provide an error message to a
+    /// DHCP client in a DHCPNAK message in the event of a failure. A client
+    /// may use this option in a DHCPDECLINE message to indicate the why the
+    /// client declined the offered parameters. The message consists of n
+    /// octets of NVT ASCII text, which the client may display on an available
+    /// output device.
+    ///
+    /// See [9.7. Message][1]
+    ///
+    /// [1]: https://datatracker.ietf.org/doc/html/rfc1533#section-9.7
     Message,
+
+    /// #### Maximum DHCP Message Size
+    ///
+    /// This option specifies the maximum length DHCP message that it is
+    /// willing to accept. The length is specified as an unsigned 16-bit
+    /// integer. A client may use the maximum DHCP message size option in
+    /// DHCPDISCOVER or DHCPREQUEST messages, but should not use the option
+    /// in DHCPDECLINE messages.
+    ///
+    /// See [9.8. Maximum DHCP Message Size][1]
+    ///
+    /// [1]: https://datatracker.ietf.org/doc/html/rfc1533#section-9.8
     MaxDhcpMessageSize,
+
+    /// ### Renewal (T1) Time Value
+    ///
+    /// This option specifies the time interval from address assignment until
+    /// the client transitions to the RENEWING state.
+    ///
+    /// The value is in units of seconds, and is specified as a 32-bit unsigned
+    /// integer.
+    ///
+    /// See [9.9. Renewal (T1) Time Value][1]
+    ///
+    /// [1]: https://datatracker.ietf.org/doc/html/rfc1533#section-9.9
     RenewalT1Time,
+
+    /// #### Rebinding (T2) Time Value
+    ///
+    /// This option specifies the time interval from address assignment until
+    /// the client transitions to the REBINDING state.
+    ///
+    /// The value is in units of seconds, and is specified as a 32-bit unsigned
+    /// integer.
+    ///
+    /// See [9.10. Rebinding (T2) Time Value][1]
+    ///
+    /// [1]: https://datatracker.ietf.org/doc/html/rfc1533#section-9.10
     RebindingT2Time,
+
+    /// #### Class-identifier
+    ///
+    /// This option is used by DHCP clients to optionally identify the type
+    /// and configuration of a DHCP client. The information is a string of n
+    /// octets, interpreted by servers. Vendors and sites may choose to
+    /// define specific class identifiers to convey particular configuration
+    /// or other identification information about a client. For example, the
+    /// identifier may encode the client's hardware configuration. Servers
+    /// not equipped to interpret the class-specific information sent by a
+    /// client MUST ignore it (although it may be reported).
+    ///
+    /// See [9.11. Class-identifier][1]
+    ///
+    /// [1]: https://datatracker.ietf.org/doc/html/rfc1533#section-9.11
     ClassIdentifier,
+
+    /// #### Client-identifier
+    ///
+    /// This option is used by DHCP clients to specify their unique identifier.
+    /// DHCP servers use this value to index their database of address
+    /// bindings. This value is expected to be unique for all clients in an
+    /// administrative domain.
+    ///
+    /// See [9.12. Client-identifier][1]
+    ///
+    /// [1]: https://datatracker.ietf.org/doc/html/rfc1533#section-9.12
     ClientIdentifier,
 }
 
