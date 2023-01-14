@@ -22,3 +22,18 @@ impl ClientIdentifier {
         self.identifier.len() + 1
     }
 }
+
+impl Writeable for ClientIdentifier {
+    type Error = BufferError;
+
+    fn write<E: Endianness>(&self, buf: &mut impl ToWriteBuffer) -> Result<usize, Self::Error> {
+        if self.identifier.len() == 0 {
+            return Err(BufferError::InvalidData);
+        }
+
+        buf.push(self.ty);
+        buf.write_vec(&mut self.identifier.clone())?;
+
+        Ok(self.len())
+    }
+}

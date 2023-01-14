@@ -1,7 +1,15 @@
+use std::net::Ipv4Addr;
+
 use binbuf::prelude::*;
 use thiserror::Error;
 
-use crate::types::{options::DhcpMessageType, OptionHeader, OptionTag};
+use crate::{
+    types::{
+        options::{ClassIdentifier, ClientIdentifier, DhcpMessageType, ParameterRequestList},
+        OptionHeader, OptionTag,
+    },
+    DHCP_MINIMUM_LEGAL_MAX_MESSAGE_SIZE,
+};
 
 #[derive(Debug, Error)]
 pub enum OptionDataError {
@@ -64,7 +72,18 @@ pub enum OptionData {
     NetbiosScope,
     XWindowSystemFontServer,
     XWindowSystemDisplayManager,
-    RequestedIpAddr,
+
+    /// #### Requested IP Address
+    ///
+    /// The code for this option is 50, and its length is 4.
+    ///
+    /// ```text
+    /// Code   Len          Address
+    /// +-----+-----+-----+-----+-----+-----+
+    /// |  50 |  4  |  a1 |  a2 |  a3 |  a4 |
+    /// +-----+-----+-----+-----+-----+-----+
+    /// ```
+    RequestedIpAddr(Ipv4Addr),
     IpAddrLeaseTime,
     OptionOverload,
     /// #### DHCP Message Type
@@ -77,12 +96,46 @@ pub enum OptionData {
     /// ```
     DhcpMessageType(DhcpMessageType),
     ServerIdentifier,
-    ParameterRequestList,
+
+    /// #### Parameter Request List
+    ///
+    /// The code for this option is 55. Its minimum length is 1.
+    ///
+    /// ```text
+    ///  Code   Len   Option Codes
+    /// +-----+-----+-----+-----+---
+    /// |  55 |  n  |  c1 |  c2 | ...
+    /// +-----+-----+-----+-----+---
+    /// ```
+    ParameterRequestList(ParameterRequestList),
     Message,
-    MaxDhcpMessageSize,
+
+    /// #### Maximum DHCP Message Size
+    ///
+    /// The code for this option is 57, and its length is 2. The minimum legal
+    /// value is 576 octets.
+    ///
+    /// ```text
+    ///  Code   Len     Length
+    /// +-----+-----+-----+-----+
+    /// |  57 |  2  |  l1 |  l2 |
+    /// +-----+-----+-----+-----+
+    /// ```
+    MaxDhcpMessageSize(u16),
     RenewalT1Time,
     RebindingT2Time,
-    ClassIdentifier,
+
+    /// #### Class-identifier
+    ///
+    /// The code for this option is 60, and its minimum length is 1.
+    ///
+    /// ```text
+    /// Code   Len   Class-Identifier
+    /// +-----+-----+-----+-----+---
+    /// |  60 |  n  |  i1 |  i2 | ...
+    /// +-----+-----+-----+-----+---
+    /// ```
+    ClassIdentifier(ClassIdentifier),
 
     /// #### Client-identifier
     ///
@@ -92,14 +145,14 @@ pub enum OptionData {
     /// |  61 |  n  |  t1 |  i1 |  i2 | ...
     /// +-----+-----+-----+-----+-----+---
     /// ```
-    ClientIdentifier,
+    ClientIdentifier(ClientIdentifier),
 }
 
 impl OptionData {
     pub fn read<E: Endianness>(
         buf: &mut impl ToReadBuffer,
         header: &OptionHeader,
-    ) -> Result<Self, OptionDataError> {
+    ) -> Result<Self, BufferError> {
         match header.tag {
             OptionTag::Pad => todo!(),
             OptionTag::End => todo!(),
@@ -152,18 +205,34 @@ impl OptionData {
             OptionTag::NetbiosScope => todo!(),
             OptionTag::XWindowSystemFontServer => todo!(),
             OptionTag::XWindowSystemDisplayManager => todo!(),
-            OptionTag::RequestedIpAddr => todo!(),
+            OptionTag::RequestedIpAddr => Ipv4Addr::read::<E>(buf).map(Self::RequestedIpAddr),
             OptionTag::IpAddrLeaseTime => todo!(),
             OptionTag::OptionOverload => todo!(),
-            OptionTag::DhcpMessageType => todo!(),
+            OptionTag::DhcpMessageType => {
+                DhcpMessageType::read::<E>(buf).map(Self::DhcpMessageType)
+            }
             OptionTag::ServerIdentifier => todo!(),
-            OptionTag::ParameterRequestList => todo!(),
+            OptionTag::ParameterRequestList => {
+                ParameterRequestList::read::<E>(buf, header.len).map(Self::ParameterRequestList)
+            }
             OptionTag::Message => todo!(),
-            OptionTag::MaxDhcpMessageSize => todo!(),
+            OptionTag::MaxDhcpMessageSize => {
+                let size = u16::read::<E>(buf)?;
+
+                if size < DHCP_MINIMUM_LEGAL_MAX_MESSAGE_SIZE {
+                    return Err(BufferError::InvalidData);
+                }
+
+                Ok(Self::MaxDhcpMessageSize(size))
+            }
             OptionTag::RenewalT1Time => todo!(),
             OptionTag::RebindingT2Time => todo!(),
-            OptionTag::ClassIdentifier => todo!(),
-            OptionTag::ClientIdentifier => todo!(),
+            OptionTag::ClassIdentifier => {
+                ClassIdentifier::read::<E>(buf, header.len).map(Self::ClassIdentifier)
+            }
+            OptionTag::ClientIdentifier => {
+                ClientIdentifier::read::<E>(buf, header.len).map(Self::ClientIdentifier)
+            }
         }
     }
 }

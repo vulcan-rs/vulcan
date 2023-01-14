@@ -881,3 +881,77 @@ impl Readable for OptionTag {
         }
     }
 }
+
+impl Writeable for OptionTag {
+    type Error = BufferError;
+
+    fn write<E: Endianness>(&self, buf: &mut impl ToWriteBuffer) -> Result<usize, Self::Error> {
+        match self {
+            Self::Pad => buf.push(1),
+            Self::End => buf.push(2),
+            Self::SubnetMask => buf.push(3),
+            Self::TimeOffset => buf.push(4),
+            Self::Router => todo!(),
+            Self::TimeServer => todo!(),
+            Self::NameServer => todo!(),
+            Self::DomainNameServer => todo!(),
+            Self::LogServer => todo!(),
+            Self::CookieServer => todo!(),
+            Self::LprServer => todo!(),
+            Self::ImpressServer => todo!(),
+            Self::ResourceLocationServer => todo!(),
+            Self::HostName => todo!(),
+            Self::BootFileSize => todo!(),
+            Self::MeritDumpFile => todo!(),
+            Self::DomainName => todo!(),
+            Self::SwapServer => todo!(),
+            Self::RootPath => todo!(),
+            Self::ExtensionsPath => todo!(),
+            Self::IpForwarding => todo!(),
+            Self::NonLocalSourceRouting => todo!(),
+            Self::PolicyFilter => todo!(),
+            Self::MaxDatagramReassemblySize => todo!(),
+            Self::DefaultIpTtl => todo!(),
+            Self::PathMtuAgingTimeout => todo!(),
+            Self::PathMtuPlateauTable => todo!(),
+            Self::InterfaceMtu => todo!(),
+            Self::AllSubnetsLocal => todo!(),
+            Self::BroadcastAddr => todo!(),
+            Self::PerformMaskDiscovery => todo!(),
+            Self::MaskSupplier => todo!(),
+            Self::PerformRouterDiscovery => todo!(),
+            Self::RouterSolicitationAddr => todo!(),
+            Self::StaticRoute => todo!(),
+            Self::TrailerEncapsulation => todo!(),
+            Self::ArpCacheTimeout => todo!(),
+            Self::EthernetEncapsulation => todo!(),
+            Self::TcpDefaultTtl => todo!(),
+            Self::TcpKeepaliveInterval => todo!(),
+            Self::TcpKeepaliveGarbage => todo!(),
+            Self::NetworkInformationServiceDomain => todo!(),
+            Self::NetworkInformationServers => todo!(),
+            Self::NetworkTimeProtocolServers => todo!(),
+            Self::VendorSpecificInformation => todo!(),
+            Self::NetbiosNameServer => todo!(),
+            Self::NetbiosDatagramDistributionServer => todo!(),
+            Self::NetbiosNodeType => todo!(),
+            Self::NetbiosScope => todo!(),
+            Self::XWindowSystemFontServer => todo!(),
+            Self::XWindowSystemDisplayManager => todo!(),
+            Self::RequestedIpAddr => todo!(),
+            Self::IpAddrLeaseTime => todo!(),
+            Self::OptionOverload => todo!(),
+            Self::DhcpMessageType => todo!(),
+            Self::ServerIdentifier => todo!(),
+            Self::ParameterRequestList => todo!(),
+            Self::Message => todo!(),
+            Self::MaxDhcpMessageSize => todo!(),
+            Self::RenewalT1Time => todo!(),
+            Self::RebindingT2Time => todo!(),
+            Self::ClassIdentifier => todo!(),
+            Self::ClientIdentifier => todo!(),
+        };
+
+        Ok(1)
+    }
+}
