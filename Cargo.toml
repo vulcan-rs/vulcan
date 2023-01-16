@@ -1,12 +1,5 @@
 [workspace]
-members = [
-  "bins/vulcan-dhcpd",
-  "bins/vulcan-dhcp",
-  "bins/vulcan-ctl",
-  "libs/binbuf",
-  "libs/radv",
-  "libs/dhcp"
-]
+members = ["crates/*"]
 
 [workspace.dependencies]
 tokio = { version = "1.21.2", features = ["net", "macros", "rt", "rt-multi-thread", "time"] }

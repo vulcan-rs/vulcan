@@ -15,7 +15,7 @@ pub use hinter::*;
 pub use validator::*;
 
 pub struct Repl<'a> {
-    // commands: Vec<Command<F>>,
+    commands: Vec<Box<dyn Command>>,
     prompt: &'a str,
     state: State,
 }
@@ -24,7 +24,7 @@ impl<'a> Repl<'a> {
     pub fn new(prompt: &'a str) -> Self {
         Self {
             state: State::default(),
-            // commands: vec![],
+            commands: vec![],
             prompt,
         }
     }
@@ -68,11 +68,36 @@ impl<'a> Repl<'a> {
         Ok(())
     }
 
-    pub fn add_command(&mut self, command: Command<impl Fn(CommandContext) -> CommandResult>) {}
+    pub fn add_command(&mut self, command: impl Command) {}
 
     fn process_input(&mut self, input: String) -> Result<(), ReplError> {
         println!("Received: {}", input);
+
+        let (cmd, args) = match self.get_command_and_args(input) {
+            Some(parts) => parts,
+            None => todo!(),
+        };
+
+        cmd.run(args);
+
         Ok(())
+    }
+
+    fn get_command_and_args(&self, input: String) -> Option<(&impl Command, String)> {
+        let input = input.trim();
+
+        let (cmd, args) = match input.split_once(" ") {
+            Some(parts) => parts,
+            None => todo!(),
+        };
+
+        for command in &self.commands {
+            if cmd == command.name() {
+                return Some((command, args.to_string()));
+            }
+        }
+
+        None
     }
 }
 
@@ -86,8 +111,4 @@ impl Default for State {
     fn default() -> Self {
         Self::Initial
     }
-}
-
-struct Test {
-    cmds: Vec<Command<F>>,
 }

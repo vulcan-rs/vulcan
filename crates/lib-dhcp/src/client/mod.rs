@@ -92,7 +92,7 @@ impl Client {
         }
 
         // Construct a new BOOTP message with default values
-        let msg = Message::new(0, 0, 0);
+        let msg = Message::new();
 
         println!("{}", msg);
 
