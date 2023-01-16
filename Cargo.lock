@@ -23,13 +23,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "binbuf"
-version = "0.1.0"
-dependencies = [
- "thiserror",
-]
-
-[[package]]
 name = "binbuf-macros"
 version = "0.0.1"
 dependencies = [
@@ -71,7 +64,7 @@ dependencies = [
 name = "dhcp"
 version = "0.1.0"
 dependencies = [
- "binbuf 0.0.1",
+ "binbuf",
  "rand",
  "thiserror",
  "tokio",
