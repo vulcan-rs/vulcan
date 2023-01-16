@@ -3,6 +3,9 @@ members = ["crates/*"]
 
 [workspace.dependencies]
 tokio = { version = "1.21.2", features = ["net", "macros", "rt", "rt-multi-thread", "time"] }
+serde = { version = "1.0.152", features = ["derive"] }
+clap = { version = "4.1.1", features =  ["derive"] }
 binbuf = { path = "../../Techassi/binbuf" }
 thiserror = "1.0.37"
+toml = "0.5.10"
 rand = "0.8.5"
