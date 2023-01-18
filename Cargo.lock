@@ -661,6 +661,7 @@ name = "vulcan-dhcpd"
 version = "0.0.1"
 dependencies = [
  "clap",
+ "dhcp",
  "serde",
  "thiserror",
  "toml",
