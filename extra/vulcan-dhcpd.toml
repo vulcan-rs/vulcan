@@ -1,0 +1,6 @@
+renewal_time = 1000
+rebinding_time = 2000
+
+[storage]
+type = "file"
+path = "./leases/dhcp.leases"
