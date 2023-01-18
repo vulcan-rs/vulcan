@@ -24,6 +24,13 @@ pub enum OptionError {
     Io(#[from] BufferError),
 }
 
+impl Into<BufferError> for OptionError {
+    fn into(self) -> BufferError {
+        BufferError::Other(self.to_string())
+    }
+}
+
+#[derive(Debug)]
 pub struct Option {
     header: OptionHeader,
     data: OptionData,
@@ -37,5 +44,16 @@ impl Readable for Option {
         let data = OptionData::read::<E>(buf, &header)?;
 
         Ok(Self { header, data })
+    }
+}
+
+impl Writeable for Option {
+    type Error = OptionError;
+
+    fn write<E: Endianness>(&self, buf: &mut impl ToWriteBuffer) -> Result<usize, Self::Error> {
+        let mut n = self.header.write::<E>(buf)?;
+        n += self.data.write::<E>(buf)?;
+
+        Ok(n)
     }
 }

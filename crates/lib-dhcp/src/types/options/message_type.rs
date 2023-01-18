@@ -1,5 +1,6 @@
 use binbuf::prelude::*;
 
+#[derive(Debug)]
 pub enum DhcpMessageType {
     Discover,
     Offer,

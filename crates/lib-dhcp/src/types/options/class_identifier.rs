@@ -1,5 +1,6 @@
 use binbuf::prelude::*;
 
+#[derive(Debug)]
 pub struct ClassIdentifier(String);
 
 impl ClassIdentifier {

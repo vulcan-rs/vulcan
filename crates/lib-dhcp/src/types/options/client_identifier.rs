@@ -1,5 +1,6 @@
 use binbuf::prelude::*;
 
+#[derive(Debug)]
 pub struct ClientIdentifier {
     identifier: Vec<u8>,
     ty: u8,

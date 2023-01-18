@@ -2,6 +2,7 @@ use binbuf::prelude::*;
 
 use crate::types::OptionTag;
 
+#[derive(Debug)]
 pub struct ParameterRequestList(Vec<OptionTag>);
 
 impl ParameterRequestList {

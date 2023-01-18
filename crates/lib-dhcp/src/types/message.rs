@@ -4,7 +4,7 @@ use binbuf::prelude::*;
 
 use crate::{
     constants,
-    types::{Addrs, Header},
+    types::{Addrs, Header, Option},
 };
 
 /// [`Message`] describes a complete DHCP message. The same packet field
@@ -38,7 +38,7 @@ pub struct Message {
     /// (64 octets).
     ///
     /// The DHCP RFC renames this filed to 'options'.
-    options: Vec<u8>,
+    options: Vec<Option>,
 }
 
 impl Display for Message {
@@ -70,7 +70,7 @@ impl Default for Message {
             addrs: Addrs::default(),
             sname: vec![0; 64],
             file: vec![0; 128],
-            options: vec![0; 64],
+            options: vec![],
         }
     }
 }
@@ -90,8 +90,7 @@ impl Readable for Message {
             None => return Err(BufferError::BufTooShort),
         };
 
-        // TODO (Techassi): Read DHCP options here
-        let options = buf.read_vec(60)?;
+        let options = read_options::<E>(buf)?;
 
         Ok(Self {
             header,
@@ -103,19 +102,41 @@ impl Readable for Message {
     }
 }
 
+fn read_options<E: Endianness>(buf: &mut impl ToReadBuffer) -> Result<Vec<Option>, BufferError> {
+    if buf.is_empty() {
+        return Err(BufferError::BufTooShort);
+    }
+
+    let options = vec![];
+
+    while !buf.is_empty() {
+        let option = match Option::read::<E>(buf) {
+            Ok(option) => option,
+            Err(err) => return Err(err.into()),
+        };
+        options.push(option);
+    }
+
+    Ok(options)
+}
+
 impl Writeable for Message {
     type Error = BufferError;
 
     fn write<E: Endianness>(&self, buf: &mut impl ToWriteBuffer) -> Result<usize, Self::Error> {
-        self.header.write::<E>(buf)?;
-        self.addrs.write::<E>(buf)?;
-        self.sname.write::<E>(buf)?;
-        self.file.write::<E>(buf)?;
+        let mut n = 0;
+
+        n += self.header.write::<E>(buf)?;
+        n += self.addrs.write::<E>(buf)?;
+        n += self.sname.write::<E>(buf)?;
+        n += self.file.write::<E>(buf)?;
 
         // Write magic cookie
-        buf.write_slice(constants::DHCP_MAGIC_COOKIE_ARR.as_slice())?;
+        n += buf.write_slice(constants::DHCP_MAGIC_COOKIE_ARR.as_slice())?;
 
-        self.options.write::<E>(buf)
+        n += self.options.write::<E>(buf)?;
+
+        Ok(n)
     }
 }
 

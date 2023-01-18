@@ -20,6 +20,7 @@ pub enum OptionDataError {
     Io(#[from] BufferError),
 }
 
+#[derive(Debug)]
 pub enum OptionData {
     Pad,
     End,
@@ -234,5 +235,13 @@ impl OptionData {
                 ClientIdentifier::read::<E>(buf, header.len).map(Self::ClientIdentifier)
             }
         }
+    }
+}
+
+impl Writeable for OptionData {
+    type Error = BufferError;
+
+    fn write<E: Endianness>(&self, buf: &mut impl ToWriteBuffer) -> Result<usize, Self::Error> {
+        todo!()
     }
 }

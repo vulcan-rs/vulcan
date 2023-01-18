@@ -1,5 +1,6 @@
 use binbuf::prelude::*;
 
+#[derive(Debug)]
 pub enum OptionTag {
     /// #### Pad Option
     ///
