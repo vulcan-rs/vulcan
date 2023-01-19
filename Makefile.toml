@@ -9,3 +9,12 @@ args = ["build" , "-p", "vulcan-dhcp"]
 command = "sudo"
 args = ["./target/debug/vulcan-dhcp"]
 dependencies = ["build-dhcp"]
+
+[tasks.build-dhcpd]
+command = "cargo"
+args = ["build" , "-p", "vulcan-dhcpd"]
+
+[tasks.run-dhcpd]
+command = "sudo"
+args = ["./target/debug/vulcan-dhcpd", "--config", "extra/vulcan-dhcpd.toml"]
+dependencies = ["build-dhcpd"]
