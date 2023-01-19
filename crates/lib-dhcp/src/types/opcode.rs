@@ -25,8 +25,8 @@ impl TryFrom<u8> for OpCode {
 impl Display for OpCode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            OpCode::BootRequest => write!(f, "BOOTREQUEST"),
-            OpCode::BootReply => write!(f, "BOOTREPLY"),
+            OpCode::BootRequest => write!(f, "Boot Request (1)"),
+            OpCode::BootReply => write!(f, "Boot Reply (2)"),
         }
     }
 }

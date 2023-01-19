@@ -53,24 +53,36 @@ pub struct Message {
 
 impl Display for Message {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let options: String = self
+            .options
+            .iter()
+            .map(|o| format!(";; {:?}\n", o))
+            .collect();
+
         write!(
             f,
-            "MSG TY: {:02x?}; HW TY: {:02x?}; HW ADDR LEN: {:02x?}; HOPS: {:02x?}; ID: {:02x?}; SECS: {:02x?}; FLAGS: {:02x?}\n\
-            ; Client IP: {:08x?}\n\
-            ; Your (client) IP: {:08x?}\n\
-            ; Next server IP: {:08x?}\n\
-            ; Relay agent IP: {:08x?}\n\
-            ; Client MAC addr: {:016x?}\n\
-            ; Server host name: {:02x?}\n\
-            ; Options: {:?}",
-            self.header.opcode, self.header.htype, self.header.hlen, self.header.hops, self.header.xid, self.header.secs, self.header.flags,
+            ";; ->>HEADER<<- MT: {}, HT: {}, HWADDR LEN: {}, HOPS: {}, XID: {:#X}\n\
+            ;; SECS: {}, FLAGS: {}\n\n\
+            ;; ->>ADDRS<<-\n\
+            ;; Client IP address: {}\n\
+            ;; Your (client) IP address: {}\n\
+            ;; Next server IP address: {}\n\
+            ;; Relay agent IP address: {}\n\
+            ;; Client MAC address: {:#X}\n\n\
+            ;; ->>OPTIONS<<-\n{}",
+            self.header.opcode,
+            self.header.htype,
+            self.header.hlen,
+            self.header.hops,
+            self.header.xid,
+            self.header.secs,
+            self.header.flags,
             self.addrs.ciaddr,
             self.addrs.yiaddr,
             self.addrs.siaddr,
             self.addrs.giaddr,
             self.addrs.chaddr,
-            self.sname,
-            self.options
+            options
         )
     }
 }
