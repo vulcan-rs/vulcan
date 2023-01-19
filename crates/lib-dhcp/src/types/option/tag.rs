@@ -1,6 +1,6 @@
 use binbuf::prelude::*;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum OptionTag {
     /// #### Pad Option
     ///
@@ -806,6 +806,20 @@ pub enum OptionTag {
     ///
     /// [1]: https://datatracker.ietf.org/doc/html/rfc1533#section-9.12
     ClientIdentifier,
+
+    /// #### DHCP Captive-Portal
+    /// The Captive-Portal DHCP/RA Option informs the client that it may be
+    /// behind a captive portal and provides the URI to access an API as
+    /// defined by [RFC8908][1].
+    ///
+    /// See [Captive-Portal Identification in DHCP and Router Advertisements (RAs)][2]
+    ///
+    /// [1]: https://datatracker.ietf.org/doc/html/rfc8908
+    /// [2]: https://datatracker.ietf.org/doc/html/rfc8910
+    DhcpCaptivePortal,
+
+    /// Unassigned or removed option tags
+    UnassignedOrRemoved(u8),
 }
 
 impl Readable for OptionTag {
@@ -877,7 +891,9 @@ impl Readable for OptionTag {
             59 => Ok(Self::RebindingT2Time),
             60 => Ok(Self::ClassIdentifier),
             61 => Ok(Self::ClientIdentifier),
+            114 => Ok(Self::DhcpCaptivePortal),
             255 => Ok(Self::End),
+            108 => Ok(Self::UnassignedOrRemoved(ty)),
             _ => Err(BufferError::InvalidData), // TODO (Techassi): Add custom error
         }
     }
@@ -888,10 +904,10 @@ impl Writeable for OptionTag {
 
     fn write<E: Endianness>(&self, buf: &mut impl ToWriteBuffer) -> Result<usize, Self::Error> {
         match self {
-            Self::Pad => buf.push(1),
-            Self::End => buf.push(2),
-            Self::SubnetMask => buf.push(3),
-            Self::TimeOffset => buf.push(4),
+            Self::Pad => buf.push(0),
+            Self::End => buf.push(255),
+            Self::SubnetMask => buf.push(1),
+            Self::TimeOffset => buf.push(2),
             Self::Router => todo!(),
             Self::TimeServer => todo!(),
             Self::NameServer => todo!(),
@@ -951,6 +967,8 @@ impl Writeable for OptionTag {
             Self::RebindingT2Time => todo!(),
             Self::ClassIdentifier => todo!(),
             Self::ClientIdentifier => todo!(),
+            Self::DhcpCaptivePortal => todo!(),
+            Self::UnassignedOrRemoved(t) => buf.push(*t),
         };
 
         Ok(1)

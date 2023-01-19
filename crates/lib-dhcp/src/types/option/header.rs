@@ -13,6 +13,12 @@ impl Readable for OptionHeader {
 
     fn read<E: Endianness>(buf: &mut impl ToReadBuffer) -> Result<Self, Self::Error> {
         let tag = OptionTag::read::<E>(buf)?;
+
+        // Fixed length options. See https://datatracker.ietf.org/doc/html/rfc1533#section-2
+        if tag == OptionTag::Pad || tag == OptionTag::End {
+            return Ok(Self { tag, len: 1 });
+        }
+
         let len = u8::read::<E>(buf)?;
 
         Ok(Self { tag, len })

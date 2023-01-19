@@ -1,11 +1,21 @@
 use std::fmt::Display;
 
-use binbuf::prelude::*;
+use binbuf::{bytes_written, prelude::*};
+use thiserror::Error;
 
 use crate::{
     constants,
-    types::{Addrs, Header, Option},
+    types::{Addrs, Header, Option, OptionError},
 };
+
+#[derive(Debug, Error)]
+pub enum MessageError {
+    #[error("Option error: {0}")]
+    OptionError(#[from] OptionError),
+
+    #[error("Buffer error: {0}")]
+    BufferError(#[from] BufferError),
+}
 
 /// [`Message`] describes a complete DHCP message. The same packet field
 /// layout is used in both directions.
@@ -51,14 +61,16 @@ impl Display for Message {
             ; Next server IP: {:08x?}\n\
             ; Relay agent IP: {:08x?}\n\
             ; Client MAC addr: {:016x?}\n\
-            ; Server host name: {:02x?}",
+            ; Server host name: {:02x?}\n\
+            ; Options: {:?}",
             self.header.opcode, self.header.htype, self.header.hlen, self.header.hops, self.header.xid, self.header.secs, self.header.flags,
             self.addrs.ciaddr,
             self.addrs.yiaddr,
             self.addrs.siaddr,
             self.addrs.giaddr,
             self.addrs.chaddr,
-            self.sname
+            self.sname,
+            self.options
         )
     }
 }
@@ -76,7 +88,7 @@ impl Default for Message {
 }
 
 impl Readable for Message {
-    type Error = BufferError;
+    type Error = MessageError;
 
     fn read<E: Endianness>(buf: &mut impl ToReadBuffer) -> Result<Self, Self::Error> {
         let header = Header::read::<E>(buf)?;
@@ -86,8 +98,8 @@ impl Readable for Message {
 
         match buf.peekn::<4>() {
             Some(m) if m == constants::DHCP_MAGIC_COOKIE_ARR => buf.skipn(4)?,
-            Some(_) => return Err(BufferError::InvalidData),
-            None => return Err(BufferError::BufTooShort),
+            Some(_) => return Err(MessageError::BufferError(BufferError::InvalidData)),
+            None => return Err(MessageError::BufferError(BufferError::BufTooShort)),
         };
 
         let options = read_options::<E>(buf)?;
@@ -102,17 +114,17 @@ impl Readable for Message {
     }
 }
 
-fn read_options<E: Endianness>(buf: &mut impl ToReadBuffer) -> Result<Vec<Option>, BufferError> {
+fn read_options<E: Endianness>(buf: &mut impl ToReadBuffer) -> Result<Vec<Option>, MessageError> {
     if buf.is_empty() {
-        return Err(BufferError::BufTooShort);
+        return Err(MessageError::BufferError(BufferError::BufTooShort));
     }
 
-    let options = vec![];
+    let mut options = vec![];
 
     while !buf.is_empty() {
         let option = match Option::read::<E>(buf) {
             Ok(option) => option,
-            Err(err) => return Err(err.into()),
+            Err(err) => return Err(MessageError::OptionError(err)),
         };
         options.push(option);
     }
@@ -121,20 +133,20 @@ fn read_options<E: Endianness>(buf: &mut impl ToReadBuffer) -> Result<Vec<Option
 }
 
 impl Writeable for Message {
-    type Error = BufferError;
+    type Error = MessageError;
 
     fn write<E: Endianness>(&self, buf: &mut impl ToWriteBuffer) -> Result<usize, Self::Error> {
-        let mut n = 0;
+        let n = bytes_written! {
+            self.header.write::<E>(buf)?;
+            self.addrs.write::<E>(buf)?;
+            self.sname.write::<E>(buf)?;
+            self.file.write::<E>(buf)?;
 
-        n += self.header.write::<E>(buf)?;
-        n += self.addrs.write::<E>(buf)?;
-        n += self.sname.write::<E>(buf)?;
-        n += self.file.write::<E>(buf)?;
+            // Write magic cookie
+            buf.write_slice(constants::DHCP_MAGIC_COOKIE_ARR.as_slice())?;
 
-        // Write magic cookie
-        n += buf.write_slice(constants::DHCP_MAGIC_COOKIE_ARR.as_slice())?;
-
-        n += self.options.write::<E>(buf)?;
+            self.options.write::<E>(buf)?
+        };
 
         Ok(n)
     }

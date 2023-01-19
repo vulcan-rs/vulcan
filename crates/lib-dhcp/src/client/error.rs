@@ -2,6 +2,8 @@ use std::time;
 
 use thiserror::Error;
 
+use crate::types::MessageError;
+
 #[derive(Debug, Error)]
 pub enum ClientError {
     #[error("IO error {0}")]
@@ -11,7 +13,7 @@ pub enum ClientError {
     BindTimeout(time::Duration),
 
     #[error("Buffer error")]
-    BufError(#[from] binbuf::error::BufferError),
+    MessageError(#[from] MessageError),
 
     #[error("Invalid message format or length: {0}")]
     Invalid(String),

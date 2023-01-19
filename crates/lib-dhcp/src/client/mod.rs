@@ -101,7 +101,7 @@ impl Client {
 
         // Write finished message to the buffer
         if let Err(err) = msg.write_be(&mut buf) {
-            return Err(ClientError::BufError(err));
+            return Err(ClientError::MessageError(err));
         }
 
         // Assure the buffer is longer then the minimum DHCP message size

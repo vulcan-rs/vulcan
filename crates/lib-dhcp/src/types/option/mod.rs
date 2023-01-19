@@ -24,11 +24,11 @@ pub enum OptionError {
     Io(#[from] BufferError),
 }
 
-impl Into<BufferError> for OptionError {
-    fn into(self) -> BufferError {
-        BufferError::Other(self.to_string())
-    }
-}
+// impl Into<BufferError> for OptionError {
+//     fn into(self) -> BufferError {
+//         BufferError::Other(self.to_string())
+//     }
+// }
 
 #[derive(Debug)]
 pub struct Option {

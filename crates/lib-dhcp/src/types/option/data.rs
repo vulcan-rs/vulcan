@@ -35,7 +35,7 @@ pub enum OptionData {
     LprServer,
     ImpressServer,
     ResourceLocationServer,
-    HostName,
+    HostName(String),
     BootFileSize,
     MeritDumpFile,
     DomainName,
@@ -155,8 +155,8 @@ impl OptionData {
         header: &OptionHeader,
     ) -> Result<Self, BufferError> {
         match header.tag {
-            OptionTag::Pad => todo!(),
-            OptionTag::End => todo!(),
+            OptionTag::Pad => Ok(Self::Pad),
+            OptionTag::End => Ok(Self::End),
             OptionTag::SubnetMask => todo!(),
             OptionTag::TimeOffset => todo!(),
             OptionTag::Router => todo!(),
@@ -168,7 +168,10 @@ impl OptionData {
             OptionTag::LprServer => todo!(),
             OptionTag::ImpressServer => todo!(),
             OptionTag::ResourceLocationServer => todo!(),
-            OptionTag::HostName => todo!(),
+            OptionTag::HostName => {
+                let b = buf.read_vec(header.len as usize)?;
+                Ok(Self::HostName(String::from_utf8(b).unwrap()))
+            }
             OptionTag::BootFileSize => todo!(),
             OptionTag::MeritDumpFile => todo!(),
             OptionTag::DomainName => todo!(),
@@ -234,6 +237,8 @@ impl OptionData {
             OptionTag::ClientIdentifier => {
                 ClientIdentifier::read::<E>(buf, header.len).map(Self::ClientIdentifier)
             }
+            OptionTag::DhcpCaptivePortal => todo!(),
+            OptionTag::UnassignedOrRemoved(_) => todo!(),
         }
     }
 }
