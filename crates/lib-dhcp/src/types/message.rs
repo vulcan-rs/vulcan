@@ -1,11 +1,11 @@
-use std::fmt::Display;
+use std::{fmt::Display, net::Ipv4Addr};
 
 use binbuf::{bytes_written, prelude::*};
 use thiserror::Error;
 
 use crate::{
     constants,
-    types::{Addrs, Header, Option, OptionError},
+    types::{HardwareAddr, Header, Option, OptionError},
 };
 
 #[derive(Debug, Error)]
@@ -28,8 +28,21 @@ pub struct Message {
     /// Header fields like the opcode, transaction id and additional flags.
     header: Header,
 
-    /// Different IP and hardware addresses.
-    addrs: Addrs,
+    /// Client IP address; filled in by client in BOOTREQUEST if known.
+    pub ciaddr: Ipv4Addr,
+
+    /// 'Your' (client) IP address. Filled by server if client doesn't know
+    /// its own address (ciaddr was 0).
+    pub yiaddr: Ipv4Addr,
+
+    /// Server IP address. Returned in BOOTREPLY by server.
+    pub siaddr: Ipv4Addr,
+
+    /// Gateway IP address, used in optional cross-gateway booting.
+    pub giaddr: Ipv4Addr,
+
+    /// Client hardware address, filled in by client (16 octets).
+    pub chaddr: HardwareAddr,
 
     /// Optional server host name, null terminated string (64 octets).
     sname: Vec<u8>,
@@ -68,7 +81,7 @@ impl Display for Message {
             ;; Your (client) IP address: {}\n\
             ;; Next server IP address: {}\n\
             ;; Relay agent IP address: {}\n\
-            ;; Client MAC address: {:#X}\n\n\
+            ;; Client MAC address: {}\n\n\
             ;; ->>OPTIONS<<-\n{}",
             self.header.opcode,
             self.header.htype,
@@ -77,11 +90,11 @@ impl Display for Message {
             self.header.xid,
             self.header.secs,
             self.header.flags,
-            self.addrs.ciaddr,
-            self.addrs.yiaddr,
-            self.addrs.siaddr,
-            self.addrs.giaddr,
-            self.addrs.chaddr,
+            self.ciaddr,
+            self.yiaddr,
+            self.siaddr,
+            self.giaddr,
+            self.chaddr,
             options
         )
     }
@@ -91,7 +104,11 @@ impl Default for Message {
     fn default() -> Self {
         Self {
             header: Header::default(),
-            addrs: Addrs::default(),
+            ciaddr: Ipv4Addr::new(0, 0, 0, 0),
+            yiaddr: Ipv4Addr::new(0, 0, 0, 0),
+            siaddr: Ipv4Addr::new(0, 0, 0, 0),
+            giaddr: Ipv4Addr::new(0, 0, 0, 0),
+            chaddr: Default::default(),
             sname: vec![0; 64],
             file: vec![0; 128],
             options: vec![],
@@ -104,7 +121,13 @@ impl Readable for Message {
 
     fn read<E: Endianness>(buf: &mut impl ToReadBuffer) -> Result<Self, Self::Error> {
         let header = Header::read::<E>(buf)?;
-        let addrs = Addrs::read::<E>(buf)?;
+
+        let ciaddr = Ipv4Addr::read::<E>(buf)?;
+        let yiaddr = Ipv4Addr::read::<E>(buf)?;
+        let siaddr = Ipv4Addr::read::<E>(buf)?;
+        let giaddr = Ipv4Addr::read::<E>(buf)?;
+        let chaddr = HardwareAddr::read::<E>(buf, header.hlen)?;
+
         let sname = buf.read_vec(64)?;
         let file = buf.read_vec(128)?;
 
@@ -118,7 +141,11 @@ impl Readable for Message {
 
         Ok(Self {
             header,
-            addrs,
+            ciaddr,
+            yiaddr,
+            siaddr,
+            giaddr,
+            chaddr,
             sname,
             file,
             options,
@@ -150,7 +177,11 @@ impl Writeable for Message {
     fn write<E: Endianness>(&self, buf: &mut impl ToWriteBuffer) -> Result<usize, Self::Error> {
         let n = bytes_written! {
             self.header.write::<E>(buf)?;
-            self.addrs.write::<E>(buf)?;
+            self.ciaddr.write::<E>(buf)?;
+            self.yiaddr.write::<E>(buf)?;
+            self.siaddr.write::<E>(buf)?;
+            self.giaddr.write::<E>(buf)?;
+            self.chaddr.write::<E>(buf)?;
             self.sname.write::<E>(buf)?;
             self.file.write::<E>(buf)?;
 
