@@ -18,18 +18,23 @@ checksum = "d468802bab17cbc0cc575e9b053f41e72aa36bfa6b7f55e3529ffa43161b97fa"
 name = "binbuf"
 version = "0.0.1"
 dependencies = [
+ "binbuf-derive",
  "binbuf-macros",
  "thiserror",
 ]
 
 [[package]]
-name = "binbuf-macros"
+name = "binbuf-derive"
 version = "0.0.1"
 dependencies = [
  "proc-macro2",
  "quote",
  "syn",
 ]
+
+[[package]]
+name = "binbuf-macros"
+version = "0.0.1"
 
 [[package]]
 name = "bitflags"

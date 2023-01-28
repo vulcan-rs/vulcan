@@ -1,6 +1,6 @@
 use std::{fmt::Display, net::Ipv4Addr};
 
-use binbuf::{bytes_written, prelude::*};
+use binbuf::prelude::*;
 use thiserror::Error;
 
 use crate::{
