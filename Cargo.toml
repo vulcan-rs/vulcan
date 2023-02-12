@@ -9,4 +9,4 @@ thiserror = "1.0.37"
 toml = "0.5.10"
 rand = "0.8.5"
 
-binbuf = { path = "../../Techassi/binbuf", features = ["macros"] }
+binbuf = { git = "https://github.com/Techassi/binbuf", features = ["derive", "macros"] }
