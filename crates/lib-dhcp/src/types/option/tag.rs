@@ -907,81 +907,83 @@ impl TryFrom<u8> for OptionTag {
     }
 }
 
-// impl TryInto<u8> for OptionTag {
-//     type Error = OptionTagError;
+impl From<OptionTag> for u8 {
+    fn from(value: OptionTag) -> Self {
+        match value {
+            OptionTag::Pad => 0,
+            OptionTag::SubnetMask => 1,
+            OptionTag::TimeOffset => 2,
+            OptionTag::Router => 3,
+            OptionTag::TimeServer => 4,
+            OptionTag::NameServer => 5,
+            OptionTag::DomainNameServer => 6,
+            OptionTag::LogServer => 7,
+            OptionTag::CookieServer => 8,
+            OptionTag::LprServer => 9,
+            OptionTag::ImpressServer => 10,
+            OptionTag::ResourceLocationServer => 11,
+            OptionTag::HostName => 12,
+            OptionTag::BootFileSize => 13,
+            OptionTag::MeritDumpFile => 14,
+            OptionTag::DomainName => 15,
+            OptionTag::SwapServer => 16,
+            OptionTag::RootPath => 17,
+            OptionTag::ExtensionsPath => 18,
+            OptionTag::IpForwarding => 19,
+            OptionTag::NonLocalSourceRouting => 20,
+            OptionTag::PolicyFilter => 21,
+            OptionTag::MaxDatagramReassemblySize => 22,
+            OptionTag::DefaultIpTtl => 23,
+            OptionTag::PathMtuAgingTimeout => 24,
+            OptionTag::PathMtuPlateauTable => 25,
+            OptionTag::InterfaceMtu => 26,
+            OptionTag::AllSubnetsLocal => 27,
+            OptionTag::BroadcastAddr => 28,
+            OptionTag::PerformMaskDiscovery => 29,
+            OptionTag::MaskSupplier => 30,
+            OptionTag::PerformRouterDiscovery => 31,
+            OptionTag::RouterSolicitationAddr => 32,
+            OptionTag::StaticRoute => 33,
+            OptionTag::TrailerEncapsulation => 34,
+            OptionTag::ArpCacheTimeout => 35,
+            OptionTag::EthernetEncapsulation => 36,
+            OptionTag::TcpDefaultTtl => 37,
+            OptionTag::TcpKeepaliveInterval => 38,
+            OptionTag::TcpKeepaliveGarbage => 39,
+            OptionTag::NetworkInformationServiceDomain => 40,
+            OptionTag::NetworkInformationServers => 41,
+            OptionTag::NetworkTimeProtocolServers => 42,
+            OptionTag::VendorSpecificInformation => 43,
+            OptionTag::NetbiosNameServer => 44,
+            OptionTag::NetbiosDatagramDistributionServer => 45,
+            OptionTag::NetbiosNodeType => 46,
+            OptionTag::NetbiosScope => 47,
+            OptionTag::XWindowSystemFontServer => 48,
+            OptionTag::XWindowSystemDisplayManager => 49,
+            OptionTag::RequestedIpAddr => 50,
+            OptionTag::IpAddrLeaseTime => 51,
+            OptionTag::OptionOverload => 52,
+            OptionTag::DhcpMessageType => 53,
+            OptionTag::ServerIdentifier => 54,
+            OptionTag::ParameterRequestList => 55,
+            OptionTag::Message => 56,
+            OptionTag::MaxDhcpMessageSize => 57,
+            OptionTag::RenewalT1Time => 58,
+            OptionTag::RebindingT2Time => 59,
+            OptionTag::ClassIdentifier => 60,
+            OptionTag::ClientIdentifier => 61,
+            OptionTag::DhcpCaptivePortal => 114,
+            OptionTag::End => 255,
+            OptionTag::UnassignedOrRemoved(v) => v,
+        }
+    }
+}
 
-//     fn try_into(self) -> Result<u8, Self::Error> {
-//         let tag = match self {
-//             OptionTag::Pad => 0,
-//             OptionTag::SubnetMask => 1,
-//             OptionTag::TimeOffset => 2,
-//             OptionTag::Router => 3,
-//             OptionTag::TimeServer => 4,
-//             OptionTag::NameServer => 5,
-//             OptionTag::DomainNameServer => 6,
-//             OptionTag::LogServer => 7,
-//             OptionTag::CookieServer => 8,
-//             OptionTag::LprServer => 9,
-//             OptionTag::ImpressServer => 10,
-//             OptionTag::ResourceLocationServer => 11,
-//             OptionTag::HostName => 12,
-//             OptionTag::BootFileSize => 13,
-//             OptionTag::MeritDumpFile => 14,
-//             OptionTag::DomainName => 15,
-//             OptionTag::SwapServer => 16,
-//             OptionTag::RootPath => 17,
-//             OptionTag::ExtensionsPath => 18,
-//             OptionTag::IpForwarding => 19,
-//             OptionTag::NonLocalSourceRouting => 20,
-//             OptionTag::PolicyFilter => 21,
-//             OptionTag::MaxDatagramReassemblySize => 22,
-//             OptionTag::DefaultIpTtl => 23,
-//             OptionTag::PathMtuAgingTimeout => 24,
-//             OptionTag::PathMtuPlateauTable => 25,
-//             OptionTag::InterfaceMtu => 26,
-//             OptionTag::AllSubnetsLocal => 27,
-//             OptionTag::BroadcastAddr => 28,
-//             OptionTag::PerformMaskDiscovery => 29,
-//             OptionTag::MaskSupplier => 30,
-//             OptionTag::PerformRouterDiscovery => 31,
-//             OptionTag::RouterSolicitationAddr => 32,
-//             OptionTag::StaticRoute => 33,
-//             OptionTag::TrailerEncapsulation => 34,
-//             OptionTag::ArpCacheTimeout => 35,
-//             OptionTag::EthernetEncapsulation => 36,
-//             OptionTag::TcpDefaultTtl => 37,
-//             OptionTag::TcpKeepaliveInterval => 38,
-//             OptionTag::TcpKeepaliveGarbage => 39,
-//             OptionTag::NetworkInformationServiceDomain => 40,
-//             OptionTag::NetworkInformationServers => 41,
-//             OptionTag::NetworkTimeProtocolServers => 42,
-//             OptionTag::VendorSpecificInformation => 43,
-//             OptionTag::NetbiosNameServer => 44,
-//             OptionTag::NetbiosDatagramDistributionServer => 45,
-//             OptionTag::NetbiosNodeType => 46,
-//             OptionTag::NetbiosScope => 47,
-//             OptionTag::XWindowSystemFontServer => 48,
-//             OptionTag::XWindowSystemDisplayManager => 49,
-//             OptionTag::RequestedIpAddr => 50,
-//             OptionTag::IpAddrLeaseTime => 51,
-//             OptionTag::OptionOverload => todo!(),
-//             OptionTag::DhcpMessageType => todo!(),
-//             OptionTag::ServerIdentifier => todo!(),
-//             OptionTag::ParameterRequestList => todo!(),
-//             OptionTag::Message => todo!(),
-//             OptionTag::MaxDhcpMessageSize => todo!(),
-//             OptionTag::RenewalT1Time => todo!(),
-//             OptionTag::RebindingT2Time => todo!(),
-//             OptionTag::ClassIdentifier => todo!(),
-//             OptionTag::ClientIdentifier => todo!(),
-//             OptionTag::DhcpCaptivePortal => todo!(),
-//             OptionTag::End => todo!(),
-//             OptionTag::UnassignedOrRemoved(_) => todo!(),
-//         };
-
-//         Ok(tag)
-//     }
-// }
+impl From<&OptionTag> for u8 {
+    fn from(value: &OptionTag) -> Self {
+        Self::from(value.clone())
+    }
+}
 
 impl Readable for OptionTag {
     type Error = OptionTagError;
@@ -995,7 +997,7 @@ impl Writeable for OptionTag {
     type Error = OptionTagError;
 
     fn write<E: Endianness>(&self, buf: &mut WriteBuffer) -> Result<usize, Self::Error> {
-        // buf.push(*self.try_into()?);
+        buf.push(u8::from(self));
         Ok(1)
     }
 }

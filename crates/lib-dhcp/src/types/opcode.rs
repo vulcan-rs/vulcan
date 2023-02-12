@@ -30,6 +30,24 @@ impl TryFrom<u8> for OpCode {
     }
 }
 
+impl From<OpCode> for u8 {
+    fn from(value: OpCode) -> Self {
+        match value {
+            OpCode::BootRequest => 1,
+            OpCode::BootReply => 2,
+        }
+    }
+}
+
+impl From<&OpCode> for u8 {
+    fn from(value: &OpCode) -> Self {
+        match value {
+            OpCode::BootRequest => 1,
+            OpCode::BootReply => 2,
+        }
+    }
+}
+
 impl Display for OpCode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -51,11 +69,7 @@ impl Writeable for OpCode {
     type Error = OpCodeError;
 
     fn write<E: Endianness>(&self, buf: &mut WriteBuffer) -> Result<usize, Self::Error> {
-        // let opcode: u8 = match self.try_into() {
-        //     Ok(code) => code,
-        //     Err(err) => return Err(err),
-        // };
-        // buf.push(opcode);
+        buf.push(u8::from(self));
         Ok(1)
     }
 }
