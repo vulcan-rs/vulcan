@@ -1,14 +1,30 @@
 use binbuf::prelude::*;
+use thiserror::Error;
 
-use crate::types::OptionTag;
+use crate::types::{OptionTag, OptionTagError};
+
+#[derive(Debug, Error)]
+pub enum ParameterRequestListError {
+    #[error("Invalid request parameter count")]
+    InvalidParameterCount,
+
+    #[error("Option tag error: {0}")]
+    OptionTagError(#[from] OptionTagError),
+
+    #[error("Buffer error {0}")]
+    BufferError(#[from] BufferError),
+}
 
 #[derive(Debug)]
 pub struct ParameterRequestList(Vec<OptionTag>);
 
 impl ParameterRequestList {
-    pub fn read<E: Endianness>(buf: &mut impl ToReadBuffer, len: u8) -> Result<Self, BufferError> {
+    pub fn read<E: Endianness>(
+        buf: &mut ReadBuffer,
+        len: u8,
+    ) -> Result<Self, ParameterRequestListError> {
         if len == 0 {
-            return Err(BufferError::InvalidData);
+            return Err(ParameterRequestListError::InvalidParameterCount);
         }
 
         let mut params = Vec::new();
@@ -23,9 +39,9 @@ impl ParameterRequestList {
 }
 
 impl Writeable for ParameterRequestList {
-    type Error = BufferError;
+    type Error = ParameterRequestListError;
 
-    fn write<E: Endianness>(&self, buf: &mut impl ToWriteBuffer) -> Result<usize, Self::Error> {
+    fn write<E: Endianness>(&self, buf: &mut WriteBuffer) -> Result<usize, Self::Error> {
         for tag in &self.0 {
             tag.write::<E>(buf)?;
         }

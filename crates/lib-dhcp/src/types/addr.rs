@@ -26,7 +26,7 @@ impl Default for HardwareAddr {
 impl Writeable for HardwareAddr {
     type Error = BufferError;
 
-    fn write<E: Endianness>(&self, buf: &mut impl ToWriteBuffer) -> Result<usize, Self::Error> {
+    fn write<E: Endianness>(&self, buf: &mut WriteBuffer) -> Result<usize, Self::Error> {
         if self.addr.len() + self.padding.len() != 16 {
             return Err(BufferError::InvalidData);
         }
@@ -41,7 +41,7 @@ impl Writeable for HardwareAddr {
 }
 
 impl HardwareAddr {
-    pub fn read<E: Endianness>(buf: &mut impl ToReadBuffer, hlen: u8) -> Result<Self, BufferError> {
+    pub fn read<E: Endianness>(buf: &mut ReadBuffer, hlen: u8) -> Result<Self, BufferError> {
         // The client hardware address can only be 16 bytes long at max
         if hlen > 16 {
             return Err(BufferError::InvalidData);

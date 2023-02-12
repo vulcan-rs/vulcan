@@ -14,7 +14,7 @@ pub enum DhcpMessageType {
 impl Readable for DhcpMessageType {
     type Error = BufferError;
 
-    fn read<E: Endianness>(buf: &mut impl ToReadBuffer) -> Result<Self, Self::Error> {
+    fn read<E: Endianness>(buf: &mut ReadBuffer) -> Result<Self, Self::Error> {
         let ty = buf.pop()?;
 
         match ty {
@@ -33,7 +33,7 @@ impl Readable for DhcpMessageType {
 impl Writeable for DhcpMessageType {
     type Error = BufferError;
 
-    fn write<E: Endianness>(&self, buf: &mut impl ToWriteBuffer) -> Result<usize, Self::Error> {
+    fn write<E: Endianness>(&self, buf: &mut WriteBuffer) -> Result<usize, Self::Error> {
         match self {
             Self::Discover => buf.push(1),
             Self::Offer => buf.push(2),

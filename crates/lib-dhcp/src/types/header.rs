@@ -1,6 +1,22 @@
 use binbuf::prelude::*;
+use thiserror::Error;
 
-use crate::{constants, types::OpCode};
+use crate::{
+    constants,
+    types::{HardwareType, HardwareTypeError, OpCode, OpCodeError},
+};
+
+#[derive(Debug, Error)]
+pub enum HeaderError {
+    #[error("Opcode error: {0}")]
+    OpCodeError(#[from] OpCodeError),
+
+    #[error("Hardware type error: {0}")]
+    HardwareTypeError(#[from] HardwareTypeError),
+
+    #[error("Buffer error: {0}")]
+    BufferError(#[from] BufferError),
+}
 
 #[derive(Debug)]
 pub struct Header {
@@ -8,7 +24,7 @@ pub struct Header {
     pub opcode: OpCode,
 
     /// Hardware address type, see ARP section in "Assigned Numbers" RFC.
-    pub htype: u8,
+    pub htype: HardwareType,
 
     /// Hardware address length.
     pub hlen: u8,
@@ -33,7 +49,7 @@ impl Default for Header {
     fn default() -> Self {
         Self {
             opcode: OpCode::BootRequest,
-            htype: constants::HARDWARE_ADDR_TYPE_ETHERNET,
+            htype: HardwareType::Ethernet,
             hlen: constants::HARDWARE_ADDR_LEN_ETHERNET,
             hops: 0,
             xid: 0,
@@ -44,11 +60,12 @@ impl Default for Header {
 }
 
 impl Readable for Header {
-    type Error = BufferError;
+    type Error = HeaderError;
 
-    fn read<E: Endianness>(buf: &mut impl ToReadBuffer) -> Result<Self, Self::Error> {
+    fn read<E: Endianness>(buf: &mut ReadBuffer) -> Result<Self, Self::Error> {
         let opcode = OpCode::read::<E>(buf)?;
-        let [htype, hlen, hops] = u8::read_multi::<E, 3>(buf)?;
+        let htype = HardwareType::read::<E>(buf)?;
+        let [hlen, hops] = u8::read_multi::<E, 2>(buf)?;
         let xid = u32::read::<E>(buf)?;
         let secs = u16::read::<E>(buf)?;
         let flags = u16::read::<E>(buf)?;
@@ -66,18 +83,18 @@ impl Readable for Header {
 }
 
 impl Writeable for Header {
-    type Error = BufferError;
+    type Error = HeaderError;
 
-    fn write<E: Endianness>(&self, buf: &mut impl ToWriteBuffer) -> Result<usize, Self::Error> {
-        let mut n = 0;
-
-        n += self.opcode.write::<E>(buf)?;
-        n += self.htype.write::<E>(buf)?;
-        n += self.hlen.write::<E>(buf)?;
-        n += self.hops.write::<E>(buf)?;
-        n += self.xid.write::<E>(buf)?;
-        n += self.secs.write::<E>(buf)?;
-        n += self.flags.write::<E>(buf)?;
+    fn write<E: Endianness>(&self, buf: &mut WriteBuffer) -> Result<usize, Self::Error> {
+        let n = bytes_written! {
+            self.opcode.write::<E>(buf)?;
+            self.htype.write::<E>(buf)?;
+            self.hlen.write::<E>(buf)?;
+            self.hops.write::<E>(buf)?;
+            self.xid.write::<E>(buf)?;
+            self.secs.write::<E>(buf)?;
+            self.flags.write::<E>(buf)?
+        };
 
         Ok(n)
     }

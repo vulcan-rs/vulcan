@@ -1,6 +1,16 @@
 use binbuf::prelude::*;
+use thiserror::Error;
 
-use crate::types::{OptionError, OptionTag};
+use crate::types::{OptionTag, OptionTagError};
+
+#[derive(Debug, Error)]
+pub enum OptionHeaderError {
+    #[error("Option tag error: {0}")]
+    OptionTagError(#[from] OptionTagError),
+
+    #[error("Buffer error: {0}")]
+    BufferError(#[from] BufferError),
+}
 
 #[derive(Debug)]
 pub struct OptionHeader {
@@ -9,12 +19,12 @@ pub struct OptionHeader {
 }
 
 impl Readable for OptionHeader {
-    type Error = OptionError;
+    type Error = OptionHeaderError;
 
-    fn read<E: Endianness>(buf: &mut impl ToReadBuffer) -> Result<Self, Self::Error> {
+    fn read<E: Endianness>(buf: &mut ReadBuffer) -> Result<Self, Self::Error> {
         let tag = OptionTag::read::<E>(buf)?;
 
-        // Fixed length options. See https://datatracker.ietf.org/doc/html/rfc1533#section-2
+        // Fixed length options. See https://rfc-editor.org/rfc/rfc1533#section-2
         if tag == OptionTag::Pad || tag == OptionTag::End {
             return Ok(Self { tag, len: 1 });
         }
@@ -26,9 +36,9 @@ impl Readable for OptionHeader {
 }
 
 impl Writeable for OptionHeader {
-    type Error = OptionError;
+    type Error = OptionHeaderError;
 
-    fn write<E: Endianness>(&self, buf: &mut impl ToWriteBuffer) -> Result<usize, Self::Error> {
+    fn write<E: Endianness>(&self, buf: &mut WriteBuffer) -> Result<usize, Self::Error> {
         let mut n = self.tag.write::<E>(buf)?;
         n += self.len.write::<E>(buf)?;
 

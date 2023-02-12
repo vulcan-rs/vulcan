@@ -1,8 +1,16 @@
 use std::fmt::Display;
 
 use binbuf::prelude::*;
+use thiserror::Error;
 
-use crate::ProtocolError;
+#[derive(Debug, Error)]
+pub enum OpCodeError {
+    #[error("Invalid opcode - expected '1' or '2', got '{0}'")]
+    InvalidCode(u8),
+
+    #[error("Buffer error: {0}")]
+    BufferError(#[from] BufferError),
+}
 
 #[derive(Debug)]
 pub enum OpCode {
@@ -11,13 +19,13 @@ pub enum OpCode {
 }
 
 impl TryFrom<u8> for OpCode {
-    type Error = ProtocolError;
+    type Error = OpCodeError;
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
             1 => Ok(Self::BootRequest),
             2 => Ok(Self::BootReply),
-            _ => Err(ProtocolError::InvalidOpCode(value)),
+            _ => Err(OpCodeError::InvalidCode(value)),
         }
     }
 }
@@ -32,25 +40,22 @@ impl Display for OpCode {
 }
 
 impl Readable for OpCode {
-    type Error = BufferError;
+    type Error = OpCodeError;
 
-    fn read<E: Endianness>(buf: &mut impl ToReadBuffer) -> Result<Self, Self::Error> {
-        match Self::try_from(buf.pop()?) {
-            Ok(opcode) => Ok(opcode),
-            Err(err) => Err(BufferError::InvalidData),
-        }
+    fn read<E: Endianness>(buf: &mut ReadBuffer) -> Result<Self, Self::Error> {
+        Self::try_from(buf.pop()?)
     }
 }
 
 impl Writeable for OpCode {
-    type Error = BufferError;
+    type Error = OpCodeError;
 
-    fn write<E: Endianness>(&self, buf: &mut impl ToWriteBuffer) -> Result<usize, Self::Error> {
-        match self {
-            OpCode::BootRequest => buf.push(1),
-            OpCode::BootReply => buf.push(2),
-        }
-
+    fn write<E: Endianness>(&self, buf: &mut WriteBuffer) -> Result<usize, Self::Error> {
+        // let opcode: u8 = match self.try_into() {
+        //     Ok(code) => code,
+        //     Err(err) => return Err(err),
+        // };
+        // buf.push(opcode);
         Ok(1)
     }
 }

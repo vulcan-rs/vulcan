@@ -4,7 +4,7 @@ use binbuf::prelude::*;
 pub struct ClassIdentifier(String);
 
 impl ClassIdentifier {
-    pub fn read<E: Endianness>(buf: &mut impl ToReadBuffer, len: u8) -> Result<Self, BufferError> {
+    pub fn read<E: Endianness>(buf: &mut ReadBuffer, len: u8) -> Result<Self, BufferError> {
         if len == 0 {
             return Err(BufferError::InvalidData);
         }
@@ -18,8 +18,9 @@ impl ClassIdentifier {
 impl Writeable for ClassIdentifier {
     type Error = BufferError;
 
-    fn write<E: Endianness>(&self, buf: &mut impl ToWriteBuffer) -> Result<usize, Self::Error> {
+    fn write<E: Endianness>(&self, buf: &mut WriteBuffer) -> Result<usize, Self::Error> {
         let bytes = self.0.as_bytes();
-        buf.write_slice(&bytes[..])
+        buf.write(bytes);
+        Ok(bytes.len())
     }
 }

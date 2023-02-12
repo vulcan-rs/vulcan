@@ -1,6 +1,16 @@
 use binbuf::prelude::*;
+use thiserror::Error;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Error)]
+pub enum OptionTagError {
+    #[error("Invalid option tag: {0}")]
+    InvalidTag(u8),
+
+    #[error("Buffer error: {0}")]
+    BufferError(#[from] BufferError),
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub enum OptionTag {
     /// #### Pad Option
     ///
@@ -822,13 +832,11 @@ pub enum OptionTag {
     UnassignedOrRemoved(u8),
 }
 
-impl Readable for OptionTag {
-    type Error = BufferError;
+impl TryFrom<u8> for OptionTag {
+    type Error = OptionTagError;
 
-    fn read<E: Endianness>(buf: &mut impl ToReadBuffer) -> Result<Self, Self::Error> {
-        let ty = buf.pop()?;
-
-        match ty {
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
             0 => Ok(Self::Pad),
             1 => Ok(Self::SubnetMask),
             2 => Ok(Self::TimeOffset),
@@ -893,84 +901,101 @@ impl Readable for OptionTag {
             61 => Ok(Self::ClientIdentifier),
             114 => Ok(Self::DhcpCaptivePortal),
             255 => Ok(Self::End),
-            108 => Ok(Self::UnassignedOrRemoved(ty)),
-            _ => Err(BufferError::InvalidData), // TODO (Techassi): Add custom error
+            108 => Ok(Self::UnassignedOrRemoved(value)),
+            _ => Err(OptionTagError::InvalidTag(value)),
         }
     }
 }
 
+// impl TryInto<u8> for OptionTag {
+//     type Error = OptionTagError;
+
+//     fn try_into(self) -> Result<u8, Self::Error> {
+//         let tag = match self {
+//             OptionTag::Pad => 0,
+//             OptionTag::SubnetMask => 1,
+//             OptionTag::TimeOffset => 2,
+//             OptionTag::Router => 3,
+//             OptionTag::TimeServer => 4,
+//             OptionTag::NameServer => 5,
+//             OptionTag::DomainNameServer => 6,
+//             OptionTag::LogServer => 7,
+//             OptionTag::CookieServer => 8,
+//             OptionTag::LprServer => 9,
+//             OptionTag::ImpressServer => 10,
+//             OptionTag::ResourceLocationServer => 11,
+//             OptionTag::HostName => 12,
+//             OptionTag::BootFileSize => 13,
+//             OptionTag::MeritDumpFile => 14,
+//             OptionTag::DomainName => 15,
+//             OptionTag::SwapServer => 16,
+//             OptionTag::RootPath => 17,
+//             OptionTag::ExtensionsPath => 18,
+//             OptionTag::IpForwarding => 19,
+//             OptionTag::NonLocalSourceRouting => 20,
+//             OptionTag::PolicyFilter => 21,
+//             OptionTag::MaxDatagramReassemblySize => 22,
+//             OptionTag::DefaultIpTtl => 23,
+//             OptionTag::PathMtuAgingTimeout => 24,
+//             OptionTag::PathMtuPlateauTable => 25,
+//             OptionTag::InterfaceMtu => 26,
+//             OptionTag::AllSubnetsLocal => 27,
+//             OptionTag::BroadcastAddr => 28,
+//             OptionTag::PerformMaskDiscovery => 29,
+//             OptionTag::MaskSupplier => 30,
+//             OptionTag::PerformRouterDiscovery => 31,
+//             OptionTag::RouterSolicitationAddr => 32,
+//             OptionTag::StaticRoute => 33,
+//             OptionTag::TrailerEncapsulation => 34,
+//             OptionTag::ArpCacheTimeout => 35,
+//             OptionTag::EthernetEncapsulation => 36,
+//             OptionTag::TcpDefaultTtl => 37,
+//             OptionTag::TcpKeepaliveInterval => 38,
+//             OptionTag::TcpKeepaliveGarbage => 39,
+//             OptionTag::NetworkInformationServiceDomain => 40,
+//             OptionTag::NetworkInformationServers => 41,
+//             OptionTag::NetworkTimeProtocolServers => 42,
+//             OptionTag::VendorSpecificInformation => 43,
+//             OptionTag::NetbiosNameServer => 44,
+//             OptionTag::NetbiosDatagramDistributionServer => 45,
+//             OptionTag::NetbiosNodeType => 46,
+//             OptionTag::NetbiosScope => 47,
+//             OptionTag::XWindowSystemFontServer => 48,
+//             OptionTag::XWindowSystemDisplayManager => 49,
+//             OptionTag::RequestedIpAddr => 50,
+//             OptionTag::IpAddrLeaseTime => 51,
+//             OptionTag::OptionOverload => todo!(),
+//             OptionTag::DhcpMessageType => todo!(),
+//             OptionTag::ServerIdentifier => todo!(),
+//             OptionTag::ParameterRequestList => todo!(),
+//             OptionTag::Message => todo!(),
+//             OptionTag::MaxDhcpMessageSize => todo!(),
+//             OptionTag::RenewalT1Time => todo!(),
+//             OptionTag::RebindingT2Time => todo!(),
+//             OptionTag::ClassIdentifier => todo!(),
+//             OptionTag::ClientIdentifier => todo!(),
+//             OptionTag::DhcpCaptivePortal => todo!(),
+//             OptionTag::End => todo!(),
+//             OptionTag::UnassignedOrRemoved(_) => todo!(),
+//         };
+
+//         Ok(tag)
+//     }
+// }
+
+impl Readable for OptionTag {
+    type Error = OptionTagError;
+
+    fn read<E: Endianness>(buf: &mut ReadBuffer) -> Result<Self, Self::Error> {
+        Self::try_from(buf.pop()?)
+    }
+}
+
 impl Writeable for OptionTag {
-    type Error = BufferError;
+    type Error = OptionTagError;
 
-    fn write<E: Endianness>(&self, buf: &mut impl ToWriteBuffer) -> Result<usize, Self::Error> {
-        match self {
-            Self::Pad => buf.push(0),
-            Self::End => buf.push(255),
-            Self::SubnetMask => buf.push(1),
-            Self::TimeOffset => buf.push(2),
-            Self::Router => todo!(),
-            Self::TimeServer => todo!(),
-            Self::NameServer => todo!(),
-            Self::DomainNameServer => todo!(),
-            Self::LogServer => todo!(),
-            Self::CookieServer => todo!(),
-            Self::LprServer => todo!(),
-            Self::ImpressServer => todo!(),
-            Self::ResourceLocationServer => todo!(),
-            Self::HostName => todo!(),
-            Self::BootFileSize => todo!(),
-            Self::MeritDumpFile => todo!(),
-            Self::DomainName => todo!(),
-            Self::SwapServer => todo!(),
-            Self::RootPath => todo!(),
-            Self::ExtensionsPath => todo!(),
-            Self::IpForwarding => todo!(),
-            Self::NonLocalSourceRouting => todo!(),
-            Self::PolicyFilter => todo!(),
-            Self::MaxDatagramReassemblySize => todo!(),
-            Self::DefaultIpTtl => todo!(),
-            Self::PathMtuAgingTimeout => todo!(),
-            Self::PathMtuPlateauTable => todo!(),
-            Self::InterfaceMtu => todo!(),
-            Self::AllSubnetsLocal => todo!(),
-            Self::BroadcastAddr => todo!(),
-            Self::PerformMaskDiscovery => todo!(),
-            Self::MaskSupplier => todo!(),
-            Self::PerformRouterDiscovery => todo!(),
-            Self::RouterSolicitationAddr => todo!(),
-            Self::StaticRoute => todo!(),
-            Self::TrailerEncapsulation => todo!(),
-            Self::ArpCacheTimeout => todo!(),
-            Self::EthernetEncapsulation => todo!(),
-            Self::TcpDefaultTtl => todo!(),
-            Self::TcpKeepaliveInterval => todo!(),
-            Self::TcpKeepaliveGarbage => todo!(),
-            Self::NetworkInformationServiceDomain => todo!(),
-            Self::NetworkInformationServers => todo!(),
-            Self::NetworkTimeProtocolServers => todo!(),
-            Self::VendorSpecificInformation => todo!(),
-            Self::NetbiosNameServer => todo!(),
-            Self::NetbiosDatagramDistributionServer => todo!(),
-            Self::NetbiosNodeType => todo!(),
-            Self::NetbiosScope => todo!(),
-            Self::XWindowSystemFontServer => todo!(),
-            Self::XWindowSystemDisplayManager => todo!(),
-            Self::RequestedIpAddr => todo!(),
-            Self::IpAddrLeaseTime => todo!(),
-            Self::OptionOverload => todo!(),
-            Self::DhcpMessageType => todo!(),
-            Self::ServerIdentifier => todo!(),
-            Self::ParameterRequestList => todo!(),
-            Self::Message => todo!(),
-            Self::MaxDhcpMessageSize => todo!(),
-            Self::RenewalT1Time => todo!(),
-            Self::RebindingT2Time => todo!(),
-            Self::ClassIdentifier => todo!(),
-            Self::ClientIdentifier => todo!(),
-            Self::DhcpCaptivePortal => todo!(),
-            Self::UnassignedOrRemoved(t) => buf.push(*t),
-        };
-
+    fn write<E: Endianness>(&self, buf: &mut WriteBuffer) -> Result<usize, Self::Error> {
+        // buf.push(*self.try_into()?);
         Ok(1)
     }
 }

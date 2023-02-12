@@ -5,11 +5,14 @@ use thiserror::Error;
 
 use crate::{
     constants,
-    types::{HardwareAddr, Header, Option, OptionError},
+    types::{HardwareAddr, Header, HeaderError, Option, OptionError},
 };
 
 #[derive(Debug, Error)]
 pub enum MessageError {
+    #[error("Header error: {0}")]
+    HeaderError(#[from] HeaderError),
+
     #[error("Option error: {0}")]
     OptionError(#[from] OptionError),
 
@@ -119,7 +122,7 @@ impl Default for Message {
 impl Readable for Message {
     type Error = MessageError;
 
-    fn read<E: Endianness>(buf: &mut impl ToReadBuffer) -> Result<Self, Self::Error> {
+    fn read<E: Endianness>(buf: &mut ReadBuffer) -> Result<Self, Self::Error> {
         let header = Header::read::<E>(buf)?;
 
         let ciaddr = Ipv4Addr::read::<E>(buf)?;
@@ -153,7 +156,7 @@ impl Readable for Message {
     }
 }
 
-fn read_options<E: Endianness>(buf: &mut impl ToReadBuffer) -> Result<Vec<Option>, MessageError> {
+fn read_options<E: Endianness>(buf: &mut ReadBuffer) -> Result<Vec<Option>, MessageError> {
     if buf.is_empty() {
         return Err(MessageError::BufferError(BufferError::BufTooShort));
     }
@@ -174,7 +177,7 @@ fn read_options<E: Endianness>(buf: &mut impl ToReadBuffer) -> Result<Vec<Option
 impl Writeable for Message {
     type Error = MessageError;
 
-    fn write<E: Endianness>(&self, buf: &mut impl ToWriteBuffer) -> Result<usize, Self::Error> {
+    fn write<E: Endianness>(&self, buf: &mut WriteBuffer) -> Result<usize, Self::Error> {
         let n = bytes_written! {
             self.header.write::<E>(buf)?;
             self.ciaddr.write::<E>(buf)?;
@@ -186,7 +189,7 @@ impl Writeable for Message {
             self.file.write::<E>(buf)?;
 
             // Write magic cookie
-            buf.write_slice(constants::DHCP_MAGIC_COOKIE_ARR.as_slice())?;
+            buf.write(constants::DHCP_MAGIC_COOKIE_ARR);
 
             self.options.write::<E>(buf)?
         };

@@ -5,7 +5,10 @@ use thiserror::Error;
 
 use crate::{
     types::{
-        options::{ClassIdentifier, ClientIdentifier, DhcpMessageType, ParameterRequestList},
+        options::{
+            ClassIdentifier, ClientIdentifier, DhcpMessageType, ParameterRequestList,
+            ParameterRequestListError,
+        },
         OptionHeader, OptionTag,
     },
     DHCP_MINIMUM_LEGAL_MAX_MESSAGE_SIZE,
@@ -13,11 +16,17 @@ use crate::{
 
 #[derive(Debug, Error)]
 pub enum OptionDataError {
+    #[error("Invalid DHCP message size")]
+    InvalidDhcpMessageSize,
+
     #[error("Invalid option data")]
     InvalidData,
 
-    #[error("IO error: {0}")]
-    Io(#[from] BufferError),
+    #[error("Parameter request list error: {0}")]
+    ParameterRequestListError(#[from] ParameterRequestListError),
+
+    #[error("Buffer error: {0}")]
+    BufferError(#[from] BufferError),
 }
 
 #[derive(Debug)]
@@ -151,12 +160,12 @@ pub enum OptionData {
 
 impl OptionData {
     pub fn read<E: Endianness>(
-        buf: &mut impl ToReadBuffer,
+        buf: &mut ReadBuffer,
         header: &OptionHeader,
-    ) -> Result<Self, BufferError> {
-        match header.tag {
-            OptionTag::Pad => Ok(Self::Pad),
-            OptionTag::End => Ok(Self::End),
+    ) -> Result<Self, OptionDataError> {
+        let option_data = match header.tag {
+            OptionTag::Pad => Self::Pad,
+            OptionTag::End => Self::End,
             OptionTag::SubnetMask => todo!(),
             OptionTag::TimeOffset => todo!(),
             OptionTag::Router => todo!(),
@@ -170,7 +179,7 @@ impl OptionData {
             OptionTag::ResourceLocationServer => todo!(),
             OptionTag::HostName => {
                 let b = buf.read_vec(header.len as usize)?;
-                Ok(Self::HostName(String::from_utf8(b).unwrap()))
+                Self::HostName(String::from_utf8(b).unwrap())
             }
             OptionTag::BootFileSize => todo!(),
             OptionTag::MeritDumpFile => todo!(),
@@ -209,44 +218,44 @@ impl OptionData {
             OptionTag::NetbiosScope => todo!(),
             OptionTag::XWindowSystemFontServer => todo!(),
             OptionTag::XWindowSystemDisplayManager => todo!(),
-            OptionTag::RequestedIpAddr => Ipv4Addr::read::<E>(buf).map(Self::RequestedIpAddr),
+            OptionTag::RequestedIpAddr => Self::RequestedIpAddr(Ipv4Addr::read::<E>(buf)?),
             OptionTag::IpAddrLeaseTime => todo!(),
             OptionTag::OptionOverload => todo!(),
-            OptionTag::DhcpMessageType => {
-                DhcpMessageType::read::<E>(buf).map(Self::DhcpMessageType)
-            }
+            OptionTag::DhcpMessageType => Self::DhcpMessageType(DhcpMessageType::read::<E>(buf)?),
             OptionTag::ServerIdentifier => todo!(),
             OptionTag::ParameterRequestList => {
-                ParameterRequestList::read::<E>(buf, header.len).map(Self::ParameterRequestList)
+                Self::ParameterRequestList(ParameterRequestList::read::<E>(buf, header.len)?)
             }
             OptionTag::Message => todo!(),
             OptionTag::MaxDhcpMessageSize => {
                 let size = u16::read::<E>(buf)?;
 
                 if size < DHCP_MINIMUM_LEGAL_MAX_MESSAGE_SIZE {
-                    return Err(BufferError::InvalidData);
+                    return Err(OptionDataError::InvalidDhcpMessageSize);
                 }
 
-                Ok(Self::MaxDhcpMessageSize(size))
+                Self::MaxDhcpMessageSize(size)
             }
             OptionTag::RenewalT1Time => todo!(),
             OptionTag::RebindingT2Time => todo!(),
             OptionTag::ClassIdentifier => {
-                ClassIdentifier::read::<E>(buf, header.len).map(Self::ClassIdentifier)
+                Self::ClassIdentifier(ClassIdentifier::read::<E>(buf, header.len)?)
             }
             OptionTag::ClientIdentifier => {
-                ClientIdentifier::read::<E>(buf, header.len).map(Self::ClientIdentifier)
+                Self::ClientIdentifier(ClientIdentifier::read::<E>(buf, header.len)?)
             }
             OptionTag::DhcpCaptivePortal => todo!(),
             OptionTag::UnassignedOrRemoved(_) => todo!(),
-        }
+        };
+
+        Ok(option_data)
     }
 }
 
 impl Writeable for OptionData {
     type Error = BufferError;
 
-    fn write<E: Endianness>(&self, buf: &mut impl ToWriteBuffer) -> Result<usize, Self::Error> {
+    fn write<E: Endianness>(&self, buf: &mut WriteBuffer) -> Result<usize, Self::Error> {
         todo!()
     }
 }
