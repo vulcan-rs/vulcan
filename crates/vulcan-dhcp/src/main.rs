@@ -1,15 +1,9 @@
-use std::net::Ipv4Addr;
-
 use dhcp::Client;
 
-#[tokio::main]
-async fn main() {
-    let client = Client::new();
+fn main() {
+    let mut client = Client::new();
 
-    if let Err(err) = client
-        .send(Ipv4Addr::new(255, 255, 255, 255), "0.0.0.0:68")
-        .await
-    {
+    if let Err(err) = client.run() {
         panic!("{}", err)
     }
 }

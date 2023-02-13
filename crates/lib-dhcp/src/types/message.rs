@@ -5,7 +5,10 @@ use thiserror::Error;
 
 use crate::{
     constants,
-    types::{HardwareAddr, Header, HeaderError, Option, OptionError},
+    types::{
+        options::DhcpMessageType, DhcpOption, HardwareAddr, Header, HeaderError, OptionData,
+        OptionError, OptionTag,
+    },
 };
 
 #[derive(Debug, Error)]
@@ -48,12 +51,12 @@ pub struct Message {
     pub chaddr: HardwareAddr,
 
     /// Optional server host name, null terminated string (64 octets).
-    sname: Vec<u8>,
+    pub sname: Vec<u8>,
 
     /// Boot file name, null terminated string. 'Generic' name or null in
     /// BOOTREQUEST, fully qualified directory-path name in bootreply
     /// (128 octets).
-    file: Vec<u8>,
+    pub file: Vec<u8>,
 
     /// Originally this was called 'vendor extensions' in the BOOTP RFC. The
     /// RFC states:
@@ -215,5 +218,17 @@ impl Message {
         }
     }
 
-    pub fn set_opcode() {}
+    /// Get DHCP message type
+    pub fn get_message_type(&self) -> Option<&DhcpMessageType> {
+        for option in &self.options {
+            if option.header().tag == OptionTag::DhcpMessageType {
+                match option.data() {
+                    OptionData::DhcpMessageType(ty) => return Some(ty),
+                    _ => return None,
+                }
+            }
+        }
+
+        None
+    }
 }

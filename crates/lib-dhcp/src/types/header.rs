@@ -103,9 +103,7 @@ impl Writeable for Header {
 impl Header {
     pub fn new() -> Self {
         let mut header = Self::default();
-
-        let xid: u32 = rand::random();
-        header.xid = xid;
+        header.xid = rand::random();
 
         header
     }

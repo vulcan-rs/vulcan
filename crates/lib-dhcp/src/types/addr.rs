@@ -1,6 +1,19 @@
-use std::fmt::Display;
+use std::{fmt::Display, num::ParseIntError};
 
 use binbuf::prelude::*;
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+pub enum ParseHardwareAddrError {
+    #[error("Invalid byte: {0}")]
+    InvalidByte(#[from] ParseIntError),
+
+    #[error("Invalid separator, expected ':'")]
+    InvalidSeparator,
+
+    #[error("Invalid length - expected < 16, got {0}")]
+    InvalidLength(usize),
+}
 
 #[derive(Debug)]
 pub struct HardwareAddr {
@@ -37,6 +50,34 @@ impl Writeable for HardwareAddr {
         };
 
         Ok(n)
+    }
+}
+
+impl TryFrom<String> for HardwareAddr {
+    type Error = ParseHardwareAddrError;
+
+    fn try_from(input: String) -> Result<Self, Self::Error> {
+        if !input.contains(':') {
+            return Err(ParseHardwareAddrError::InvalidSeparator);
+        }
+
+        let input = input.trim();
+        let bytes: Vec<_> = input.split(':').collect();
+
+        if bytes.len() > 16 {
+            return Err(ParseHardwareAddrError::InvalidLength(bytes.len()));
+        }
+
+        let mut addr: Vec<u8> = Vec::new();
+
+        for byte in bytes {
+            addr.push(byte.parse()?);
+        }
+
+        Ok(Self {
+            padding: vec![0; 16 - addr.len()],
+            addr,
+        })
     }
 }
 

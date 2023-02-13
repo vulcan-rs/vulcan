@@ -1,15 +1,20 @@
-use std::{net::Ipv4Addr, time};
-
-use tokio::{
-    net::{ToSocketAddrs, UdpSocket},
-    time::timeout,
+use std::{
+    net::Ipv4Addr,
+    time::{self, Duration},
 };
 
 use binbuf::prelude::*;
+use network_interface::{Error as InterfaceError, NetworkInterface, NetworkInterfaceConfig};
+use rand::{self, Rng};
+use tokio::{
+    net::{ToSocketAddrs, UdpSocket},
+    time::{sleep, timeout},
+};
 
-use crate::{constants, types::Message};
+use crate::{client::state::ClientState, constants, types::Message};
 
 mod error;
+mod state;
 
 pub use error::ClientError;
 
@@ -40,6 +45,8 @@ impl ClientBuilder {
             bind_timeout: self.bind_timeout,
             read_timeout: self.read_timeout,
             write_timeout: self.write_timeout,
+            state: ClientState::default(),
+            interface: NetworkInterface::new_afinet("eth0", Ipv4Addr::UNSPECIFIED, None, None, 1),
         }
     }
 
@@ -57,6 +64,13 @@ pub struct Client {
 
     /// Duration before the write process of DHCP requests times out.
     write_timeout: time::Duration,
+
+    /// The client state, see
+    /// https://www.rfc-editor.org/rfc/rfc2131#section-4.4
+    state: ClientState,
+
+    /// The selected network interface
+    interface: NetworkInterface,
 }
 
 impl Client {
@@ -70,10 +84,55 @@ impl Client {
         ClientBuilder::default()
     }
 
+    /// Run the client as a daemon
+    #[tokio::main]
+    pub async fn run(&mut self) -> Result<(), ClientError> {
+        // Get network interfaces. We need to select the proper one, to use
+        // the correct hardware / mac address in DHCP messages.
+        let interface = select_network_interface()?;
+        if interface.is_none() {
+            return Err(ClientError::NoInterfaceFound);
+        }
+
+        self.interface = interface.unwrap();
+
+        // Create UDP socket with a bind timeout
+        let sock = create_sock_with_timeout("0.0.0.0:68", self.bind_timeout).await?;
+
+        loop {
+            // We now use a state machine to keep track of the client state.
+            // This is described in 4.4: https://www.rfc-editor.org/rfc/rfc2131#section-4.4
+            match self.state {
+                ClientState::Init => {
+                    // Wait a random amount between one and ten seconds
+                    let mut rng = rand::thread_rng();
+                    let wait_duration = Duration::from_secs(rng.gen_range(1..=10));
+                    sleep(wait_duration).await;
+
+                    let discover_msg = self.make_discover_message();
+                    break;
+                }
+                ClientState::InitReboot => todo!(),
+                ClientState::Selecting => todo!(),
+                ClientState::Rebooting => todo!(),
+                ClientState::Requesting => todo!(),
+                ClientState::Rebinding => todo!(),
+                ClientState::Bound => todo!(),
+                ClientState::Renewing => todo!(),
+            }
+        }
+
+        Ok(())
+    }
+
+    fn make_discover_message(&self) -> Message {
+        Message::new()
+    }
+
     /// Send a DHCP message / packet with the default timeouts to `dest_addr`
     /// by binding to `bind_addr`. The bind address is usually `0.0.0.0:68`.
     /// The default timeouts can be adjusted by using [`Client::builder`]
-    pub async fn send<A>(&self, dest_addr: Ipv4Addr, bind_addr: A) -> Result<(), ClientError>
+    async fn send<A>(&self, dest_addr: Ipv4Addr, bind_addr: A) -> Result<(), ClientError>
     where
         A: ToSocketAddrs,
     {
@@ -126,6 +185,32 @@ impl Client {
 
         Ok(())
     }
+}
+
+fn select_network_interface() -> Result<Option<NetworkInterface>, InterfaceError> {
+    let interfaces = NetworkInterface::show()?;
+    for interface in interfaces {
+        // Filter out interfaces like loopback (lo) and wireguard (wgX)
+        if interface.name.starts_with("lo") || interface.name.starts_with("wg") {
+            continue;
+        }
+
+        // TODO (Techassi): This should also filter out null addresses
+        if interface.mac_addr.is_none() {
+            continue;
+        }
+
+        // Filter out interfaces with IPv6 addresses, as this DHCP
+        // implementation is aimed at IPv4
+        if interface.addr.filter(|a| a.ip().is_ipv6()).is_some() {
+            continue;
+        }
+
+        // Hopefully the right interface
+        return Ok(Some(interface));
+    }
+
+    Ok(None)
 }
 
 // TODO (Techassi): Don't return a client error here, but instead a more
