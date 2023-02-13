@@ -8,6 +8,7 @@ thiserror = { workspace = true }
 binbuf = { workspace = true }
 tokio = { workspace = true }
 rand = { workspace = true }
+network-interface = "0.1.6"
 
 [lib]
 name = "dhcp"
