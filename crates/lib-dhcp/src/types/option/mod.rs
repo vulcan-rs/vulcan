@@ -22,12 +22,12 @@ pub enum OptionError {
 }
 
 #[derive(Debug)]
-pub struct Option {
+pub struct DhcpOption {
     header: OptionHeader,
     data: OptionData,
 }
 
-impl Readable for Option {
+impl Readable for DhcpOption {
     type Error = OptionError;
 
     fn read<E: Endianness>(buf: &mut ReadBuffer) -> Result<Self, Self::Error> {
@@ -38,7 +38,7 @@ impl Readable for Option {
     }
 }
 
-impl Writeable for Option {
+impl Writeable for DhcpOption {
     type Error = OptionError;
 
     fn write<E: Endianness>(&self, buf: &mut WriteBuffer) -> Result<usize, Self::Error> {
@@ -46,5 +46,15 @@ impl Writeable for Option {
         n += self.data.write::<E>(buf)?;
 
         Ok(n)
+    }
+}
+
+impl DhcpOption {
+    pub fn header(&self) -> &OptionHeader {
+        &self.header
+    }
+
+    pub fn data(&self) -> &OptionData {
+        &self.data
     }
 }

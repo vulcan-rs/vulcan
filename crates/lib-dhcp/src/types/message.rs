@@ -64,7 +64,7 @@ pub struct Message {
     /// (64 octets).
     ///
     /// The DHCP RFC renames this filed to 'options'.
-    options: Vec<Option>,
+    pub options: Vec<DhcpOption>,
 }
 
 impl Display for Message {
@@ -156,7 +156,7 @@ impl Readable for Message {
     }
 }
 
-fn read_options<E: Endianness>(buf: &mut ReadBuffer) -> Result<Vec<Option>, MessageError> {
+fn read_options<E: Endianness>(buf: &mut ReadBuffer) -> Result<Vec<DhcpOption>, MessageError> {
     if buf.is_empty() {
         return Err(MessageError::BufferError(BufferError::BufTooShort));
     }
@@ -164,7 +164,7 @@ fn read_options<E: Endianness>(buf: &mut ReadBuffer) -> Result<Vec<Option>, Mess
     let mut options = vec![];
 
     while !buf.is_empty() {
-        let option = match Option::read::<E>(buf) {
+        let option = match DhcpOption::read::<E>(buf) {
             Ok(option) => option,
             Err(err) => return Err(MessageError::OptionError(err)),
         };
