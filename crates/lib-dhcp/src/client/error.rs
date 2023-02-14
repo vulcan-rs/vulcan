@@ -3,7 +3,7 @@ use std::time;
 use network_interface::Error as InterfaceError;
 use thiserror::Error;
 
-use crate::types::MessageError;
+use crate::{client::state::DhcpStateError, types::MessageError};
 
 #[derive(Debug, Error)]
 pub enum ClientError {
@@ -18,6 +18,9 @@ pub enum ClientError {
 
     #[error("Failed to select a network interface")]
     NoInterfaceFound,
+
+    #[error("DHCP state error: {0}")]
+    DhcpStateError(#[from] DhcpStateError),
 
     #[error("Message error: {0}")]
     MessageError(#[from] MessageError),

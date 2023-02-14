@@ -4,7 +4,10 @@ use binbuf::prelude::*;
 use thiserror::Error;
 use tokio::{self, net};
 
-use crate::{constants, types::Message};
+use crate::{
+    constants,
+    types::{options::DhcpMessageType, Message},
+};
 
 pub struct Session {
     socket: Arc<net::UdpSocket>,
@@ -85,5 +88,49 @@ async fn handle(buf: &[u8], session: Session) {
         }
     };
 
-    println!("{}", message)
+    let message_type = match message.get_message_type() {
+        Some(ty) => ty,
+        None => {
+            println!("No DHCP message type option");
+            return;
+        }
+    };
+
+    match message_type {
+        DhcpMessageType::Discover => handle_discover(message, session).await,
+        DhcpMessageType::Offer => handle_offer(message, session).await,
+        DhcpMessageType::Request => handle_request(message, session).await,
+        DhcpMessageType::Decline => handle_decline(message, session).await,
+        DhcpMessageType::Ack => handle_ack(message, session).await,
+        DhcpMessageType::Nak => handle_nak(message, session).await,
+        DhcpMessageType::Release => handle_release(message, session).await,
+    }
+}
+
+async fn handle_discover(message: Message, session: Session) {
+    todo!()
+}
+
+async fn handle_offer(message: Message, session: Session) {
+    todo!()
+}
+
+async fn handle_request(message: Message, session: Session) {
+    todo!()
+}
+
+async fn handle_decline(message: Message, session: Session) {
+    todo!()
+}
+
+async fn handle_ack(message: Message, session: Session) {
+    todo!()
+}
+
+async fn handle_nak(message: Message, session: Session) {
+    todo!()
+}
+
+async fn handle_release(message: Message, session: Session) {
+    todo!()
 }

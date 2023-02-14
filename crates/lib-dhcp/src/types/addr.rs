@@ -71,7 +71,7 @@ impl TryFrom<String> for HardwareAddr {
         let mut addr: Vec<u8> = Vec::new();
 
         for byte in bytes {
-            addr.push(byte.parse()?);
+            addr.push(u8::from_str_radix(byte, 16)?);
         }
 
         Ok(Self {
@@ -98,4 +98,16 @@ impl HardwareAddr {
             addr: addr.to_vec(),
         })
     }
+}
+
+#[test]
+fn test_hardware_address_from_string() {
+    let addr = String::from("DE:AD:BE:EF:12:34");
+    match HardwareAddr::try_from(addr) {
+        Ok(addr) => {
+            assert_eq!(addr.addr, vec![222, 173, 190, 239, 18, 52]);
+            assert_eq!(addr.padding.len(), 10);
+        }
+        Err(err) => panic!("{}", err),
+    };
 }

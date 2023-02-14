@@ -11,7 +11,12 @@ use tokio::{
     time::{sleep, timeout},
 };
 
-use crate::{client::state::ClientState, constants, types::Message};
+use crate::{
+    client::state::{ClientState, DhcpState},
+    constants,
+    types::Message,
+    DHCP_MINIMUM_LEGAL_MAX_MESSAGE_SIZE,
+};
 
 mod error;
 mod state;
@@ -90,39 +95,100 @@ impl Client {
         // Get network interfaces. We need to select the proper one, to use
         // the correct hardware / mac address in DHCP messages.
         let interface = select_network_interface()?;
-        if interface.is_none() {
-            return Err(ClientError::NoInterfaceFound);
-        }
-
-        self.interface = interface.unwrap();
+        let interface = interface.ok_or(ClientError::NoInterfaceFound)?;
 
         // Create UDP socket with a bind timeout
         let sock = create_sock_with_timeout("0.0.0.0:68", self.bind_timeout).await?;
 
         loop {
+            // First try to retreive one (if any) UDP datagrams.
+            // readable can produce a false positive, which is why we need to
+            // check for errors when calling try_recv_from.
+            sock.readable().await?;
+
+            // Create an empty (all 0) buffer with the minimum legal max DHCP
+            // message size
+            let mut buf = vec![0u8; DHCP_MINIMUM_LEGAL_MAX_MESSAGE_SIZE.into()];
+
+            let (buf, addr) = match sock.try_recv_from(&mut buf) {
+                Ok((len, addr)) => (&buf[..len], addr),
+                Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                    continue;
+                }
+                Err(e) => {
+                    return Err(e.into());
+                }
+            };
+
+            let mut buf = ReadBuffer::new(buf);
+            let response = Message::read_be(&mut buf)?;
+
             // We now use a state machine to keep track of the client state.
             // This is described in 4.4: https://www.rfc-editor.org/rfc/rfc2131#section-4.4
-            match self.state {
-                ClientState::Init => {
+            match self.dhcp_state() {
+                DhcpState::Init => {
                     // Wait a random amount between one and ten seconds
                     let mut rng = rand::thread_rng();
                     let wait_duration = Duration::from_secs(rng.gen_range(1..=10));
                     sleep(wait_duration).await;
 
                     let discover_msg = self.make_discover_message();
-                    break;
+
+                    // Send DHCPDISCOVER message
+
+                    // Transition to SELECTING
+                    self.state.transition_to(DhcpState::Selecting)?;
                 }
-                ClientState::InitReboot => todo!(),
-                ClientState::Selecting => todo!(),
-                ClientState::Rebooting => todo!(),
-                ClientState::Requesting => todo!(),
-                ClientState::Rebinding => todo!(),
-                ClientState::Bound => todo!(),
-                ClientState::Renewing => todo!(),
+                DhcpState::InitReboot => todo!(),
+                DhcpState::Selecting => {
+                    // Collect replies (DHCPOFFER)
+
+                    // Select offer
+
+                    // Send DHCPREQUEST message
+
+                    // Transition to REQUESTING
+                }
+                DhcpState::Rebooting => todo!(),
+                DhcpState::Requesting => {
+                    // Discard other DHCPOFFER
+
+                    // Set lease, T1 and T2 timers (DHCPACK)
+
+                    // Send DHCPACK message
+
+                    // Transition to BOUND
+                }
+                DhcpState::Rebinding => {
+                    // Set lease, T1 and T2 timers (DHCPACK)
+                    // Transition to BOUND
+
+                    // Lease expired (DHCPNAK), return to INIT
+                }
+                DhcpState::Bound => {
+                    // Remain in this state. Discard incoming
+                    // DHCPOFFER, DHCPACK and DHCPNAK
+
+                    // T1 expires, send DHCPREQUEST to leasing server
+
+                    // Transition to RENEWING
+                }
+                DhcpState::Renewing => {
+                    // Set lease, T1 and T2 timers (DHCPACK)
+
+                    // DHCPNAK, return to INIT
+
+                    // T2 expires, broadcast DHCPREQUEST
+                    // Transition to REBINDING
+                }
             }
         }
+    }
 
-        Ok(())
+    /// Retrieve the DHCP state from the client state. This is a shortcut for
+    /// `self.state.dhcp_state()`.
+    fn dhcp_state(&self) -> &DhcpState {
+        self.state.dhcp_state()
     }
 
     fn make_discover_message(&self) -> Message {
