@@ -694,7 +694,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "vulcan-dhcp"
+name = "vulcan-dhcpc"
 version = "0.0.1"
 dependencies = [
  "dhcp",
