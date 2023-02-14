@@ -206,7 +206,13 @@ impl Message {
     /// with a random transaction ID and then calls [`Self::new_with_header`].
     pub fn new() -> Self {
         let header = Header::new();
-        return Self::new_with_header(header);
+        Self::new_with_header(header)
+    }
+
+    /// Create a new DHCP [`Message`] with the provided transaction id (xid).
+    pub fn new_with_xid(xid: u32) -> Self {
+        let header = Header::new_with_xid(xid);
+        Self::new_with_header(header)
     }
 
     /// Create a new DHCP [`Message`] with the provided header. All other

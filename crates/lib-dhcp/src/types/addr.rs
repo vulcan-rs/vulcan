@@ -15,7 +15,7 @@ pub enum ParseHardwareAddrError {
     InvalidLength(usize),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct HardwareAddr {
     padding: Vec<u8>,
     addr: Vec<u8>,

@@ -107,4 +107,11 @@ impl Header {
 
         header
     }
+
+    pub fn new_with_xid(xid: u32) -> Self {
+        let mut header = Self::default();
+        header.xid = xid;
+
+        header
+    }
 }

@@ -3,11 +3,14 @@ use std::time;
 use network_interface::Error as InterfaceError;
 use thiserror::Error;
 
-use crate::{client::state::DhcpStateError, types::MessageError};
+use crate::{
+    client::state::DhcpStateError,
+    types::{MessageError, ParseHardwareAddrError},
+};
 
 #[derive(Debug, Error)]
 pub enum ClientError {
-    #[error("IO error {0}")]
+    #[error("IO error: {0}")]
     IO(#[from] std::io::Error),
 
     #[error("Bind error: Failed to create and bind UDP socket after {0:?}")]
@@ -18,6 +21,9 @@ pub enum ClientError {
 
     #[error("Failed to select a network interface")]
     NoInterfaceFound,
+
+    #[error("Parse hardware address error: {0}")]
+    ParseHardwareAddrError(#[from] ParseHardwareAddrError),
 
     #[error("DHCP state error: {0}")]
     DhcpStateError(#[from] DhcpStateError),
