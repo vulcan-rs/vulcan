@@ -98,6 +98,14 @@ impl HardwareAddr {
             addr: addr.to_vec(),
         })
     }
+
+    pub fn len(&self) -> usize {
+        self.addr.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.addr.is_empty()
+    }
 }
 
 #[test]

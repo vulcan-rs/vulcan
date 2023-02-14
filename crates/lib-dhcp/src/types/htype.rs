@@ -28,6 +28,22 @@ impl TryFrom<u8> for HardwareType {
     }
 }
 
+impl From<HardwareType> for u8 {
+    fn from(value: HardwareType) -> Self {
+        match value {
+            HardwareType::Ethernet => 1,
+        }
+    }
+}
+
+impl From<&HardwareType> for u8 {
+    fn from(value: &HardwareType) -> Self {
+        match value {
+            HardwareType::Ethernet => 1,
+        }
+    }
+}
+
 impl Display for HardwareType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -48,8 +64,8 @@ impl Writeable for HardwareType {
     type Error = HardwareTypeError;
 
     fn write<E: Endianness>(&self, buf: &mut WriteBuffer) -> Result<usize, Self::Error> {
-        // let htype: u8 = (*self).try_into()?;
-        // buf.push(htype);
+        let htype = u8::from(self);
+        buf.push(htype);
         Ok(1)
     }
 }

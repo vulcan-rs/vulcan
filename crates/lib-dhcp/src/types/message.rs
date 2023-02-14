@@ -181,21 +181,25 @@ impl Writeable for Message {
     type Error = MessageError;
 
     fn write<E: Endianness>(&self, buf: &mut WriteBuffer) -> Result<usize, Self::Error> {
-        let n = bytes_written! {
-            self.header.write::<E>(buf)?;
-            self.ciaddr.write::<E>(buf)?;
-            self.yiaddr.write::<E>(buf)?;
-            self.siaddr.write::<E>(buf)?;
-            self.giaddr.write::<E>(buf)?;
-            self.chaddr.write::<E>(buf)?;
-            self.sname.write::<E>(buf)?;
-            self.file.write::<E>(buf)?;
+        // let n = bytes_written! {};
 
-            // Write magic cookie
-            buf.write(constants::DHCP_MAGIC_COOKIE_ARR);
+        let mut n = 0;
 
-            self.options.write::<E>(buf)?
-        };
+        n += self.header.write::<E>(buf)?;
+        n += self.ciaddr.write::<E>(buf)?;
+        n += self.yiaddr.write::<E>(buf)?;
+        n += self.siaddr.write::<E>(buf)?;
+        n += self.giaddr.write::<E>(buf)?;
+        println!("{:?}", buf.bytes());
+        n += self.chaddr.write::<E>(buf)?;
+        println!("{:?}", buf.bytes());
+        n += self.sname.write::<E>(buf)?;
+        n += self.file.write::<E>(buf)?;
+
+        // Write magic cookie
+        n += buf.write(constants::DHCP_MAGIC_COOKIE_ARR);
+
+        n += self.options.write::<E>(buf)?;
 
         Ok(n)
     }
@@ -236,5 +240,11 @@ impl Message {
         }
 
         None
+    }
+
+    pub fn set_hardware_address(&mut self, haddr: HardwareAddr) {
+        // TODO (Techassi): We should return a u8. This would make the len call falliable tho
+        self.header.hlen = haddr.len() as u8;
+        self.chaddr = haddr;
     }
 }

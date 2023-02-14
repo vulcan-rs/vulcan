@@ -15,7 +15,7 @@ use crate::{
     client::state::{ClientStateMachine, DhcpState, DhcpStateError},
     constants,
     types::{HardwareAddr, Message},
-    DHCP_MINIMUM_LEGAL_MAX_MESSAGE_SIZE,
+    DHCP_MINIMUM_LEGAL_MAX_MESSAGE_SIZE, DHCP_SERVER_PORT,
 };
 
 mod error;
@@ -47,13 +47,14 @@ impl Default for ClientBuilder {
 impl ClientBuilder {
     pub fn build(&self) -> Client {
         Client {
-            bind_timeout: self.bind_timeout,
-            read_timeout: self.read_timeout,
-            write_timeout: self.write_timeout,
             interface: NetworkInterface::new_afinet("eth0", Ipv4Addr::UNSPECIFIED, None, None, 1),
             hardware_address: HardwareAddr::default(),
             transaction_id: Default::default(),
+            write_timeout: self.write_timeout,
             dhcp_state: DhcpState::default(),
+            bind_timeout: self.bind_timeout,
+            read_timeout: self.read_timeout,
+            dhcp_server_ip_address: None,
         }
     }
 
@@ -81,6 +82,10 @@ pub struct Client {
     // CLIENT STATE FIELDS
     /// Current transaction id (xid)
     transaction_id: u32,
+
+    /// Optional DHCP server IP address. This address is only set when the
+    /// client already received a DHCP message.
+    dhcp_server_ip_address: Option<Ipv4Addr>,
 
     /// DHCP state
     dhcp_state: DhcpState,
@@ -207,7 +212,8 @@ impl Client {
         )?;
 
         // Create UDP socket with a bind timeout
-        let sock = create_sock_with_timeout("0.0.0.0:68", self.bind_timeout).await?;
+        let socket = create_sock_with_timeout("0.0.0.0:68", self.bind_timeout).await?;
+        socket.set_broadcast(true);
 
         loop {
             // We now use a state machine to keep track of the client state.
@@ -217,13 +223,17 @@ impl Client {
                     println!("Entering state INIT");
                     // Wait a random amount between one and ten seconds
                     let wait_duration = Duration::from_secs(rand::thread_rng().gen_range(1..=10));
-                    println!("Wait for {:?} to send DHCPDISCOVER message", wait_duration);
+                    println!(
+                        "Waiting for {:?} to send DHCPDISCOVER message",
+                        wait_duration
+                    );
                     sleep(wait_duration).await;
 
                     let discover_msg = self.make_discover_message();
-                    println!("DHCPDISCOVER message: {:?}", discover_msg);
+                    println!("DHCPDISCOVER message:\n{:?}", discover_msg);
 
                     // Send DHCPDISCOVER message
+                    self.send_message(discover_msg, &socket).await?;
 
                     // Transition to SELECTING
                     self.transition_to(DhcpState::Selecting)?;
@@ -231,7 +241,7 @@ impl Client {
                 DhcpState::InitReboot => todo!(),
                 DhcpState::Selecting => {
                     // Collect replies (DHCPOFFER)
-                    let (message, addr) = match self.recv_message(&sock).await? {
+                    let (message, addr) = match self.recv_message(&socket).await? {
                         Some(result) => result,
                         None => continue,
                     };
@@ -279,7 +289,11 @@ impl Client {
     }
 
     fn destination_addr(&self) -> Ipv4Addr {
-        todo!()
+        if self.dhcp_server_ip_address.is_some() {
+            return self.dhcp_server_ip_address.unwrap();
+        }
+
+        Ipv4Addr::BROADCAST
     }
 
     /// Receive a DHCP message. This internally runs through the following
@@ -322,63 +336,36 @@ impl Client {
     /// Send a DHCP message / packet with the default timeouts to `dest_addr`
     /// by binding to `bind_addr`. The bind address is usually `0.0.0.0:68`.
     /// The default timeouts can be adjusted by using [`Client::builder`]
-    async fn send_message<A>(&self, dest_addr: Ipv4Addr, bind_addr: A) -> Result<(), ClientError>
-    where
-        A: ToSocketAddrs,
-    {
-        // See Packet Processing - 7.1 Client Transmission
-        // https://datatracker.ietf.org/doc/html/rfc951#section-7
-
-        // Create UDP socket with a bind timeout
-        let sock = create_sock_with_timeout(bind_addr, self.bind_timeout).await?;
-
-        // If the provided destionation IP address is the broadcast address,
-        // we set the socket to broadcast mode
-        if dest_addr.is_broadcast() {
-            if let Err(err) = sock.set_broadcast(true) {
-                return Err(ClientError::IO(err));
-            }
-        }
-
-        // Construct a new BOOTP message with default values
-        let msg = Message::new();
-
-        println!("{}", msg);
+    async fn send_message(&self, message: Message, socket: &UdpSocket) -> Result<(), ClientError> {
+        // Choose a destion IP address. This is either the broadcast address
+        // or the DHCP server address.
+        let destination_addr = self.destination_addr();
 
         // Create the write buffer
         let mut buf = WriteBuffer::new();
-
-        // Write finished message to the buffer
-        if let Err(err) = msg.write_be(&mut buf) {
-            return Err(ClientError::MessageError(err));
-        }
+        message.write_be(&mut buf)?;
 
         // Assure the buffer is longer then the minimum DHCP message size
-        if buf.len() < constants::MIN_DHCP_MSG_SIZE {
-            return Err(ClientError::Invalid(
-                "DHCP message is shorter than the minimum required length".into(),
-            ));
-        }
-
-        // println!("{:02X?}", buf.bytes());
+        // TODO (Techassi): Make this a error variant
+        // println!("Buf length: {}", buf.len());
+        // if buf.len() < constants::DHCP_MIN_MSG_SIZE {
+        //     return Err(ClientError::Invalid(
+        //         "DHCP message is shorter than the minimum required length".into(),
+        //     ));
+        // }
 
         // Off to the wire the bytes go
-        let n = sock.send_to(buf.bytes(), (dest_addr, 67)).await?;
+        let n = socket
+            .send_to(buf.bytes(), (destination_addr, DHCP_SERVER_PORT))
+            .await?;
+
         println!("Bytes written: {}", n);
-
-        // Start the receive loop. We try a certain amount of times until we
-        // give up. After giving up, the caller needs to handle the DHCP
-        // request failure. This usually involves to send a new DHCP request
-        // after a few seconds / minutes.
-
-        // loop {}
-
         Ok(())
     }
 
     /// This creates a new DHCPDISCOVER message with the values described in
     /// RFC 2131 Section 4.4.1
-    fn make_discover_message(&mut self) -> Result<Message, ClientError> {
+    fn make_discover_message(&mut self) -> Message {
         // The client sets 'ciaddr' to 0x00000000. This is already done in
         // Message::new() (Default value).
         let mut message = Message::new_with_xid(self.transaction_id);
@@ -392,12 +379,12 @@ impl Client {
 
         // The client MUST include its hardware address in the 'chaddr' field,
         // if necessary for delivery of DHCP reply messages.
-        message.chaddr = self.hardware_address.clone();
+        message.set_hardware_address(self.hardware_address.clone());
 
         // The client MAY include a different unique identifier in the 'client
         // identifier' option, as discussed in section 4.2.
 
-        Ok(message)
+        message
     }
 }
 
