@@ -33,12 +33,12 @@ pub enum OptionDataError {
 pub enum OptionData {
     Pad,
     End,
-    SubnetMask,
+    SubnetMask(Ipv4Addr),
     TimeOffset,
-    Router,
+    Router(Vec<Ipv4Addr>),
     TimeServer,
     NameServer,
-    DomainNameServer,
+    DomainNameServer(Vec<Ipv4Addr>),
     LogServer,
     CookieServer,
     LprServer,
@@ -94,7 +94,7 @@ pub enum OptionData {
     /// +-----+-----+-----+-----+-----+-----+
     /// ```
     RequestedIpAddr(Ipv4Addr),
-    IpAddrLeaseTime,
+    IpAddrLeaseTime(u32),
     OptionOverload,
     /// #### DHCP Message Type
     ///
@@ -105,7 +105,7 @@ pub enum OptionData {
     /// +-----+-----+-----+
     /// ```
     DhcpMessageType(DhcpMessageType),
-    ServerIdentifier,
+    ServerIdentifier(Ipv4Addr),
 
     /// #### Parameter Request List
     ///
@@ -158,6 +158,80 @@ pub enum OptionData {
     ClientIdentifier(ClientIdentifier),
 }
 
+impl Writeable for OptionData {
+    type Error = OptionDataError;
+
+    fn write<E: Endianness>(&self, buf: &mut WriteBuffer) -> Result<usize, Self::Error> {
+        let n = match self {
+            OptionData::Pad => 0u8.write::<E>(buf)?,
+            OptionData::End => 255u8.write::<E>(buf)?,
+            OptionData::SubnetMask(mask) => mask.write::<E>(buf)?,
+            OptionData::TimeOffset => todo!(),
+            OptionData::Router(ips) => ips.write::<E>(buf)?,
+            OptionData::TimeServer => todo!(),
+            OptionData::NameServer => todo!(),
+            OptionData::DomainNameServer(ips) => ips.write::<E>(buf)?,
+            OptionData::LogServer => todo!(),
+            OptionData::CookieServer => todo!(),
+            OptionData::LprServer => todo!(),
+            OptionData::ImpressServer => todo!(),
+            OptionData::ResourceLocationServer => todo!(),
+            OptionData::HostName(name) => name.write::<E>(buf)?,
+            OptionData::BootFileSize => todo!(),
+            OptionData::MeritDumpFile => todo!(),
+            OptionData::DomainName => todo!(),
+            OptionData::SwapServer => todo!(),
+            OptionData::RootPath => todo!(),
+            OptionData::ExtensionsPath => todo!(),
+            OptionData::IpForwarding => todo!(),
+            OptionData::NonLocalSourceRouting => todo!(),
+            OptionData::PolicyFilter => todo!(),
+            OptionData::MaxDatagramReassemblySize => todo!(),
+            OptionData::DefaultIpTtl => todo!(),
+            OptionData::PathMtuAgingTimeout => todo!(),
+            OptionData::PathMtuPlateauTable => todo!(),
+            OptionData::InterfaceMtu => todo!(),
+            OptionData::AllSubnetsLocal => todo!(),
+            OptionData::BroadcastAddr => todo!(),
+            OptionData::PerformMaskDiscovery => todo!(),
+            OptionData::MaskSupplier => todo!(),
+            OptionData::PerformRouterDiscovery => todo!(),
+            OptionData::RouterSolicitationAddr => todo!(),
+            OptionData::StaticRoute => todo!(),
+            OptionData::TrailerEncapsulation => todo!(),
+            OptionData::ArpCacheTimeout => todo!(),
+            OptionData::EthernetEncapsulation => todo!(),
+            OptionData::TcpDefaultTtl => todo!(),
+            OptionData::TcpKeepaliveInterval => todo!(),
+            OptionData::TcpKeepaliveGarbage => todo!(),
+            OptionData::NetworkInformationServiceDomain => todo!(),
+            OptionData::NetworkInformationServers => todo!(),
+            OptionData::NetworkTimeProtocolServers => todo!(),
+            OptionData::VendorSpecificInformation => todo!(),
+            OptionData::NetbiosNameServer => todo!(),
+            OptionData::NetbiosDatagramDistributionServer => todo!(),
+            OptionData::NetbiosNodeType => todo!(),
+            OptionData::NetbiosScope => todo!(),
+            OptionData::XWindowSystemFontServer => todo!(),
+            OptionData::XWindowSystemDisplayManager => todo!(),
+            OptionData::RequestedIpAddr(_) => todo!(),
+            OptionData::IpAddrLeaseTime(time) => time.write::<E>(buf)?,
+            OptionData::OptionOverload => todo!(),
+            OptionData::DhcpMessageType(ty) => ty.write::<E>(buf)?,
+            OptionData::ServerIdentifier(ip) => ip.write::<E>(buf)?,
+            OptionData::ParameterRequestList(list) => list.write::<E>(buf)?,
+            OptionData::Message => todo!(),
+            OptionData::MaxDhcpMessageSize(size) => size.write::<E>(buf)?,
+            OptionData::RenewalT1Time => todo!(),
+            OptionData::RebindingT2Time => todo!(),
+            OptionData::ClassIdentifier(_) => todo!(),
+            OptionData::ClientIdentifier(_) => todo!(),
+        };
+
+        Ok(n)
+    }
+}
+
 impl OptionData {
     pub fn read<E: Endianness>(
         buf: &mut ReadBuffer,
@@ -166,12 +240,36 @@ impl OptionData {
         let option_data = match header.tag {
             OptionTag::Pad => Self::Pad,
             OptionTag::End => Self::End,
-            OptionTag::SubnetMask => todo!(),
+            OptionTag::SubnetMask => Self::SubnetMask(Ipv4Addr::read::<E>(buf)?),
             OptionTag::TimeOffset => todo!(),
-            OptionTag::Router => todo!(),
+            OptionTag::Router => {
+                if header.len % 4 != 0 {
+                    return Err(OptionDataError::InvalidData);
+                }
+
+                let mut ips = Vec::new();
+
+                for _ in 0..header.len / 4 {
+                    ips.push(Ipv4Addr::read::<E>(buf)?);
+                }
+
+                Self::Router(ips)
+            }
             OptionTag::TimeServer => todo!(),
             OptionTag::NameServer => todo!(),
-            OptionTag::DomainNameServer => todo!(),
+            OptionTag::DomainNameServer => {
+                if header.len % 4 != 0 {
+                    return Err(OptionDataError::InvalidData);
+                }
+
+                let mut ips = Vec::new();
+
+                for _ in 0..header.len / 4 {
+                    ips.push(Ipv4Addr::read::<E>(buf)?);
+                }
+
+                Self::DomainNameServer(ips)
+            }
             OptionTag::LogServer => todo!(),
             OptionTag::CookieServer => todo!(),
             OptionTag::LprServer => todo!(),
@@ -219,10 +317,10 @@ impl OptionData {
             OptionTag::XWindowSystemFontServer => todo!(),
             OptionTag::XWindowSystemDisplayManager => todo!(),
             OptionTag::RequestedIpAddr => Self::RequestedIpAddr(Ipv4Addr::read::<E>(buf)?),
-            OptionTag::IpAddrLeaseTime => todo!(),
+            OptionTag::IpAddrLeaseTime => Self::IpAddrLeaseTime(u32::read::<E>(buf)?),
             OptionTag::OptionOverload => todo!(),
             OptionTag::DhcpMessageType => Self::DhcpMessageType(DhcpMessageType::read::<E>(buf)?),
-            OptionTag::ServerIdentifier => todo!(),
+            OptionTag::ServerIdentifier => Self::ServerIdentifier(Ipv4Addr::read::<E>(buf)?),
             OptionTag::ParameterRequestList => {
                 Self::ParameterRequestList(ParameterRequestList::read::<E>(buf, header.len)?)
             }
@@ -250,12 +348,72 @@ impl OptionData {
 
         Ok(option_data)
     }
-}
 
-impl Writeable for OptionData {
-    type Error = BufferError;
-
-    fn write<E: Endianness>(&self, buf: &mut WriteBuffer) -> Result<usize, Self::Error> {
-        todo!()
+    pub fn len(&self) -> u8 {
+        match self {
+            OptionData::Pad => 1,
+            OptionData::End => 1,
+            OptionData::SubnetMask(_) => 4,
+            OptionData::TimeOffset => 4,
+            OptionData::Router(ips) => ips.len() as u8,
+            OptionData::TimeServer => todo!(),
+            OptionData::NameServer => todo!(),
+            OptionData::DomainNameServer(ips) => ips.len() as u8,
+            OptionData::LogServer => todo!(),
+            OptionData::CookieServer => todo!(),
+            OptionData::LprServer => todo!(),
+            OptionData::ImpressServer => todo!(),
+            OptionData::ResourceLocationServer => todo!(),
+            OptionData::HostName(h) => h.len() as u8,
+            OptionData::BootFileSize => 2,
+            OptionData::MeritDumpFile => todo!(),
+            OptionData::DomainName => todo!(),
+            OptionData::SwapServer => todo!(),
+            OptionData::RootPath => todo!(),
+            OptionData::ExtensionsPath => todo!(),
+            OptionData::IpForwarding => 1,
+            OptionData::NonLocalSourceRouting => 1,
+            OptionData::PolicyFilter => todo!(),
+            OptionData::MaxDatagramReassemblySize => 2,
+            OptionData::DefaultIpTtl => 1,
+            OptionData::PathMtuAgingTimeout => 4,
+            OptionData::PathMtuPlateauTable => todo!(),
+            OptionData::InterfaceMtu => 2,
+            OptionData::AllSubnetsLocal => 1,
+            OptionData::BroadcastAddr => 4,
+            OptionData::PerformMaskDiscovery => 1,
+            OptionData::MaskSupplier => 1,
+            OptionData::PerformRouterDiscovery => 1,
+            OptionData::RouterSolicitationAddr => 4,
+            OptionData::StaticRoute => todo!(),
+            OptionData::TrailerEncapsulation => 1,
+            OptionData::ArpCacheTimeout => 4,
+            OptionData::EthernetEncapsulation => 1,
+            OptionData::TcpDefaultTtl => 1,
+            OptionData::TcpKeepaliveInterval => 4,
+            OptionData::TcpKeepaliveGarbage => 1,
+            OptionData::NetworkInformationServiceDomain => todo!(),
+            OptionData::NetworkInformationServers => todo!(),
+            OptionData::NetworkTimeProtocolServers => todo!(),
+            OptionData::VendorSpecificInformation => todo!(),
+            OptionData::NetbiosNameServer => todo!(),
+            OptionData::NetbiosDatagramDistributionServer => todo!(),
+            OptionData::NetbiosNodeType => 1,
+            OptionData::NetbiosScope => todo!(),
+            OptionData::XWindowSystemFontServer => todo!(),
+            OptionData::XWindowSystemDisplayManager => todo!(),
+            OptionData::RequestedIpAddr(_) => 4,
+            OptionData::IpAddrLeaseTime(_) => 4,
+            OptionData::OptionOverload => 1,
+            OptionData::DhcpMessageType(_) => 1,
+            OptionData::ServerIdentifier(_) => 4,
+            OptionData::ParameterRequestList(l) => l.len() as u8,
+            OptionData::Message => todo!(),
+            OptionData::MaxDhcpMessageSize(_) => 2,
+            OptionData::RenewalT1Time => 4,
+            OptionData::RebindingT2Time => 4,
+            OptionData::ClassIdentifier(_) => todo!(),
+            OptionData::ClientIdentifier(_) => todo!(),
+        }
     }
 }

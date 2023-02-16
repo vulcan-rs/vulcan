@@ -21,6 +21,9 @@ pub enum MessageError {
 
     #[error("Buffer error: {0}")]
     BufferError(#[from] BufferError),
+
+    #[error("Option with tag {0} already ppresent, duplicates are not allowed")]
+    DuplicateOptionError(OptionTag),
 }
 
 /// [`Message`] describes a complete DHCP message. The same packet field
@@ -32,7 +35,7 @@ pub enum MessageError {
 #[derive(Debug)]
 pub struct Message {
     /// Header fields like the opcode, transaction id and additional flags.
-    header: Header,
+    pub header: Header,
 
     /// Client IP address; filled in by client in BOOTREQUEST if known.
     pub ciaddr: Ipv4Addr,
@@ -190,9 +193,7 @@ impl Writeable for Message {
         n += self.yiaddr.write::<E>(buf)?;
         n += self.siaddr.write::<E>(buf)?;
         n += self.giaddr.write::<E>(buf)?;
-        println!("{:?}", buf.bytes());
         n += self.chaddr.write::<E>(buf)?;
-        println!("{:?}", buf.bytes());
         n += self.sname.write::<E>(buf)?;
         n += self.file.write::<E>(buf)?;
 
@@ -246,5 +247,19 @@ impl Message {
         // TODO (Techassi): We should return a u8. This would make the len call falliable tho
         self.header.hlen = haddr.len() as u8;
         self.chaddr = haddr;
+    }
+
+    pub fn add_option(&mut self, option: DhcpOption) -> Result<(), MessageError> {
+        // TODO (Techassi): We should probably make the options field a HashMap
+        for opt in &self.options {
+            if opt.header().tag == option.header().tag {
+                return Err(MessageError::DuplicateOptionError(
+                    option.header().tag.clone(),
+                ));
+            }
+        }
+
+        self.options.push(option);
+        Ok(())
     }
 }

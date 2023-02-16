@@ -13,9 +13,11 @@ use tokio::{
 
 use crate::{
     client::state::{ClientStateMachine, DhcpState, DhcpStateError},
-    constants,
-    types::{HardwareAddr, Message},
-    DHCP_MINIMUM_LEGAL_MAX_MESSAGE_SIZE, DHCP_SERVER_PORT,
+    types::{
+        options::{DhcpMessageType, ParameterRequestList},
+        DhcpOption, HardwareAddr, Message, MessageError, OptionData, OptionTag,
+    },
+    utils, TimeoutResult, DHCP_MINIMUM_LEGAL_MAX_MESSAGE_SIZE, DHCP_SERVER_PORT,
 };
 
 mod error;
@@ -49,11 +51,11 @@ impl ClientBuilder {
         Client {
             interface: NetworkInterface::new_afinet("eth0", Ipv4Addr::UNSPECIFIED, None, None, 1),
             hardware_address: HardwareAddr::default(),
-            transaction_id: Default::default(),
             write_timeout: self.write_timeout,
             dhcp_state: DhcpState::default(),
             bind_timeout: self.bind_timeout,
             read_timeout: self.read_timeout,
+            transaction_id: rand::random(),
             dhcp_server_ip_address: None,
         }
     }
@@ -213,7 +215,7 @@ impl Client {
 
         // Create UDP socket with a bind timeout
         let socket = create_sock_with_timeout("0.0.0.0:68", self.bind_timeout).await?;
-        socket.set_broadcast(true);
+        socket.set_broadcast(true)?;
 
         loop {
             // We now use a state machine to keep track of the client state.
@@ -229,28 +231,65 @@ impl Client {
                     );
                     sleep(wait_duration).await;
 
-                    let discover_msg = self.make_discover_message();
-                    println!("DHCPDISCOVER message:\n{:?}", discover_msg);
-
                     // Send DHCPDISCOVER message
-                    self.send_message(discover_msg, &socket).await?;
+                    println!("Sending DHCPDISCOVER message");
+                    let discover_message = self.make_discover_message()?;
+                    self.send_message(discover_message, &socket).await?;
 
                     // Transition to SELECTING
                     self.transition_to(DhcpState::Selecting)?;
                 }
                 DhcpState::InitReboot => todo!(),
                 DhcpState::Selecting => {
+                    println!("Entering state SELECTING");
                     // Collect replies (DHCPOFFER)
-                    let (message, addr) = match self.recv_message(&socket).await? {
-                        Some(result) => result,
-                        None => continue,
-                    };
+                    // TODO (Techassi): Scale the timeout duration over time
+                    let (message, addr) =
+                        match utils::timeout(Duration::from_secs(2), self.recv_message(&socket))
+                            .await
+                        {
+                            TimeoutResult::Timeout => {
+                                self.transition_to(DhcpState::Init)?;
+                                continue;
+                            }
+                            TimeoutResult::Error(err) => return Err(err),
+                            TimeoutResult::Ok(result) => match result {
+                                Some(result) => result,
+                                None => continue,
+                            },
+                        };
+
+                    // Check if the transaction ID matches
+                    if self.transaction_id != message.header.xid {
+                        println!(
+                            "Received response with wrong transaction ID: {} (yours: {})",
+                            message.header.xid, self.transaction_id
+                        );
+                        continue;
+                    }
+
+                    // Check if the DHCP message type is correct
+                    match message.get_message_type() {
+                        Some(ty) => {
+                            if *ty != DhcpMessageType::Offer {
+                                continue;
+                            }
+                        }
+                        None => {
+                            println!("Received response with no DHCP message type option set");
+                            continue;
+                        }
+                    }
 
                     // Select offer
 
                     // Send DHCPREQUEST message
+                    println!("Sending DHCPREQUEST message");
+                    let request_message = self.make_request_message()?;
+                    self.send_message(request_message, &socket).await?;
 
                     // Transition to REQUESTING
+                    self.transition_to(DhcpState::Requesting)?;
                 }
                 DhcpState::Rebooting => todo!(),
                 DhcpState::Requesting => {
@@ -345,33 +384,45 @@ impl Client {
         let mut buf = WriteBuffer::new();
         message.write_be(&mut buf)?;
 
-        // Assure the buffer is longer then the minimum DHCP message size
-        // TODO (Techassi): Make this a error variant
-        // println!("Buf length: {}", buf.len());
-        // if buf.len() < constants::DHCP_MIN_MSG_SIZE {
-        //     return Err(ClientError::Invalid(
-        //         "DHCP message is shorter than the minimum required length".into(),
-        //     ));
-        // }
-
         // Off to the wire the bytes go
-        let n = socket
+        socket
             .send_to(buf.bytes(), (destination_addr, DHCP_SERVER_PORT))
             .await?;
 
-        println!("Bytes written: {}", n);
         Ok(())
     }
 
     /// This creates a new DHCPDISCOVER message with the values described in
     /// RFC 2131 Section 4.4.1
-    fn make_discover_message(&mut self) -> Message {
+    fn make_discover_message(&mut self) -> Result<Message, MessageError> {
         // The client sets 'ciaddr' to 0x00000000. This is already done in
         // Message::new() (Default value).
         let mut message = Message::new_with_xid(self.transaction_id);
 
+        // Set DHCP options
+        // DHCP message type
+        message.add_option(DhcpOption::new(
+            OptionTag::DhcpMessageType,
+            OptionData::DhcpMessageType(DhcpMessageType::Discover),
+        ))?;
+
+        // Maximum DHCP message size
+        // TODO (Techassi): Don't hardcode this
+        message.add_option(DhcpOption::new(
+            OptionTag::MaxDhcpMessageSize,
+            OptionData::MaxDhcpMessageSize(1500),
+        ))?;
+
+        // Hostname
+        message.add_option(DhcpOption::new(
+            OptionTag::HostName,
+            OptionData::HostName("hardcoded".to_string()),
+        ))?;
+
         // The client MAY request specific parameters by including the
         // 'parameter request list' option.
+        message.add_option(self.default_request_parameter_list())?;
+        message.add_option(DhcpOption::new(OptionTag::End, OptionData::End))?;
 
         // The client MAY suggest a network address and/or lease time by
         // including the 'requested IP address' and 'IP address lease time'
@@ -384,7 +435,23 @@ impl Client {
         // The client MAY include a different unique identifier in the 'client
         // identifier' option, as discussed in section 4.2.
 
-        message
+        Ok(message)
+    }
+
+    fn make_request_message(&self) -> Result<Message, MessageError> {
+        Ok(Message::default())
+    }
+
+    fn default_request_parameter_list(&self) -> DhcpOption {
+        DhcpOption::new(
+            OptionTag::ParameterRequestList,
+            OptionData::ParameterRequestList(ParameterRequestList::new(vec![
+                OptionTag::Router,
+                OptionTag::DomainNameServer,
+                OptionTag::RenewalT1Time,
+                OptionTag::RebindingT2Time,
+            ])),
+        )
     }
 }
 

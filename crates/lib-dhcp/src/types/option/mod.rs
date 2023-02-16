@@ -50,6 +50,15 @@ impl Writeable for DhcpOption {
 }
 
 impl DhcpOption {
+    pub fn new(tag: OptionTag, data: OptionData) -> Self {
+        let header = OptionHeader {
+            len: data.len(),
+            tag,
+        };
+
+        Self { header, data }
+    }
+
     pub fn header(&self) -> &OptionHeader {
         &self.header
     }

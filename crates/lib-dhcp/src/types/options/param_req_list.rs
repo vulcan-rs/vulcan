@@ -49,3 +49,13 @@ impl Writeable for ParameterRequestList {
         Ok(self.0.len())
     }
 }
+
+impl ParameterRequestList {
+    pub fn new(tags: Vec<OptionTag>) -> Self {
+        Self(tags)
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+}
