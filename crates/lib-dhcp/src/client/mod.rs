@@ -131,6 +131,7 @@ impl Client {
 
         // Create UDP socket with a bind timeout
         let socket = create_sock_with_timeout("0.0.0.0:68", self.bind_timeout).await?;
+        socket.bind_device(Some(self.interface.name.as_bytes()))?;
         socket.set_broadcast(true)?;
 
         loop {
