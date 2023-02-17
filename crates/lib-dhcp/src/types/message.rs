@@ -229,18 +229,23 @@ impl Message {
         }
     }
 
-    /// Get DHCP message type
-    pub fn get_message_type(&self) -> Option<&DhcpMessageType> {
+    /// Get DHCP option by tag. Returns [`None`] if no such option is presnt.
+    pub fn get_option(&self, tag: OptionTag) -> Option<&DhcpOption> {
         for option in &self.options {
-            if option.header().tag == OptionTag::DhcpMessageType {
-                match option.data() {
-                    OptionData::DhcpMessageType(ty) => return Some(ty),
-                    _ => return None,
-                }
+            if option.header().tag == tag {
+                return Some(&option);
             }
         }
-
         None
+    }
+
+    /// Get DHCP message type
+    pub fn get_message_type(&self) -> Option<&DhcpMessageType> {
+        let option = self.get_option(OptionTag::DhcpMessageType)?;
+        match option.data() {
+            OptionData::DhcpMessageType(ty) => return Some(ty),
+            _ => return None,
+        }
     }
 
     pub fn set_hardware_address(&mut self, haddr: HardwareAddr) {

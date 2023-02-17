@@ -12,7 +12,7 @@ use tokio::{
 };
 
 use crate::{
-    client::state::{ClientStateMachine, DhcpState, DhcpStateError},
+    client::state::{ClientStateMachine, DhcpState},
     types::{
         options::{DhcpMessageType, ParameterRequestList},
         DhcpOption, HardwareAddr, Message, MessageError, OptionData, OptionTag,
@@ -51,12 +51,14 @@ impl ClientBuilder {
         Client {
             interface: NetworkInterface::new_afinet("eth0", Ipv4Addr::UNSPECIFIED, None, None, 1),
             hardware_address: HardwareAddr::default(),
+            offered_ip_address: Ipv4Addr::UNSPECIFIED,
             write_timeout: self.write_timeout,
             dhcp_state: DhcpState::default(),
             bind_timeout: self.bind_timeout,
             read_timeout: self.read_timeout,
             transaction_id: rand::random(),
             dhcp_server_ip_address: None,
+            offered_time: 0,
         }
     }
 
@@ -89,101 +91,15 @@ pub struct Client {
     /// client already received a DHCP message.
     dhcp_server_ip_address: Option<Ipv4Addr>,
 
+    /// Optional offered IP address. This address is only set when the DHCP
+    /// server send back a DHCPOFFER message, which contains the IP address
+    /// in the `yiaddr` field.
+    offered_ip_address: Ipv4Addr,
+
+    offered_time: u32,
+
     /// DHCP state
     dhcp_state: DhcpState,
-}
-
-impl ClientStateMachine for Client {
-    fn transition_to(&mut self, state: DhcpState) -> Result<(), DhcpStateError> {
-        match self.dhcp_state {
-            DhcpState::Init => match state {
-                next @ DhcpState::Selecting => {
-                    self.dhcp_state = next;
-                    Ok(())
-                }
-                _ => Err(DhcpStateError::new(self.dhcp_state.clone(), state)),
-            },
-            DhcpState::InitReboot => todo!(),
-            DhcpState::Selecting => match state {
-                next @ DhcpState::Selecting => {
-                    self.dhcp_state = next;
-                    Ok(())
-                }
-                next @ DhcpState::Requesting => {
-                    self.dhcp_state = next;
-                    Ok(())
-                }
-                _ => Err(DhcpStateError::new(self.dhcp_state.clone(), state)),
-            },
-            DhcpState::Rebooting => match state {
-                next @ DhcpState::Init => {
-                    self.dhcp_state = next;
-                    Ok(())
-                }
-                next @ DhcpState::InitReboot => {
-                    self.dhcp_state = next;
-                    Ok(())
-                }
-                next @ DhcpState::Bound => {
-                    self.dhcp_state = next;
-                    Ok(())
-                }
-                _ => Err(DhcpStateError::new(self.dhcp_state.clone(), state)),
-            },
-            DhcpState::Requesting => match state {
-                next @ DhcpState::Init => {
-                    self.dhcp_state = next;
-                    Ok(())
-                }
-                next @ DhcpState::Requesting => {
-                    self.dhcp_state = next;
-                    Ok(())
-                }
-                next @ DhcpState::Bound => {
-                    self.dhcp_state = next;
-                    Ok(())
-                }
-                _ => Err(DhcpStateError::new(self.dhcp_state.clone(), state)),
-            },
-            DhcpState::Rebinding => match state {
-                next @ DhcpState::Init => {
-                    self.dhcp_state = next;
-                    Ok(())
-                }
-                next @ DhcpState::Bound => {
-                    self.dhcp_state = next;
-                    Ok(())
-                }
-                _ => Err(DhcpStateError::new(self.dhcp_state.clone(), state)),
-            },
-            DhcpState::Bound => match state {
-                next @ DhcpState::Bound => {
-                    self.dhcp_state = next;
-                    Ok(())
-                }
-                next @ DhcpState::Renewing => {
-                    self.dhcp_state = next;
-                    Ok(())
-                }
-                _ => Err(DhcpStateError::new(self.dhcp_state.clone(), state)),
-            },
-            DhcpState::Renewing => match state {
-                next @ DhcpState::Init => {
-                    self.dhcp_state = next;
-                    Ok(())
-                }
-                next @ DhcpState::Rebinding => {
-                    self.dhcp_state = next;
-                    Ok(())
-                }
-                next @ DhcpState::Bound => {
-                    self.dhcp_state = next;
-                    Ok(())
-                }
-                _ => Err(DhcpStateError::new(self.dhcp_state.clone(), state)),
-            },
-        }
-    }
 }
 
 impl Client {
@@ -282,6 +198,26 @@ impl Client {
                     }
 
                     // Select offer
+                    // Set destination server IP address
+                    if let Some(option) = message.get_option(OptionTag::ServerIdentifier) {
+                        match option.data() {
+                            OptionData::ServerIdentifier(ip) => {
+                                self.dhcp_server_ip_address = Some(*ip)
+                            }
+                            _ => {}
+                        }
+                    }
+
+                    // Set offered IP address lease time
+                    if let Some(option) = message.get_option(OptionTag::IpAddrLeaseTime) {
+                        match option.data() {
+                            OptionData::IpAddrLeaseTime(time) => self.offered_time = *time,
+                            _ => {}
+                        }
+                    }
+
+                    // Set offered IP address
+                    self.offered_ip_address = message.yiaddr;
 
                     // Send DHCPREQUEST message
                     println!("Sending DHCPREQUEST message");
@@ -293,13 +229,50 @@ impl Client {
                 }
                 DhcpState::Rebooting => todo!(),
                 DhcpState::Requesting => {
+                    println!("Entering REQUESTING");
                     // Discard other DHCPOFFER
 
+                    // We should get a DHCPACK or DHCPNAK message
+                    // TODO (Techassi): Scale the timeout duration over time
+                    let (message, addr) =
+                        match utils::timeout(Duration::from_secs(2), self.recv_message(&socket))
+                            .await
+                        {
+                            TimeoutResult::Timeout => {
+                                self.transition_to(DhcpState::Init)?;
+                                continue;
+                            }
+                            TimeoutResult::Error(err) => return Err(err),
+                            TimeoutResult::Ok(result) => match result {
+                                Some(result) => result,
+                                None => continue,
+                            },
+                        };
+
+                    // TODO (Techassi): We should introduce a timer which ticks everytime we encounter this code path to
+                    // not get stuck in this state
+                    match message.get_message_type() {
+                        Some(ty) => match ty {
+                            DhcpMessageType::Nak => {
+                                self.transition_to(DhcpState::Init)?;
+                                continue;
+                            }
+                            DhcpMessageType::Ack => {}
+                            _ => continue,
+                        },
+                        None => continue,
+                    }
+
                     // Set lease, T1 and T2 timers (DHCPACK)
+                    println!("Setting lease, T1 and T2 timers");
 
                     // Send DHCPACK message
+                    println!("Sending DHCPACK message");
+                    let ack_message = self.make_ack_message()?;
+                    self.send_message(ack_message, &socket).await?;
 
                     // Transition to BOUND
+                    self.transition_to(DhcpState::Bound)?;
                 }
                 DhcpState::Rebinding => {
                     // Set lease, T1 and T2 timers (DHCPACK)
@@ -308,6 +281,7 @@ impl Client {
                     // Lease expired (DHCPNAK), return to INIT
                 }
                 DhcpState::Bound => {
+                    println!("Entering BOUND")
                     // Remain in this state. Discard incoming
                     // DHCPOFFER, DHCPACK and DHCPNAK
 
@@ -400,7 +374,7 @@ impl Client {
         let mut message = Message::new_with_xid(self.transaction_id);
 
         // Set DHCP options
-        // DHCP message type
+        // Set DHCP message type option
         message.add_option(DhcpOption::new(
             OptionTag::DhcpMessageType,
             OptionData::DhcpMessageType(DhcpMessageType::Discover),
@@ -413,7 +387,7 @@ impl Client {
             OptionData::MaxDhcpMessageSize(1500),
         ))?;
 
-        // Hostname
+        // Set DHCP hostname option
         message.add_option(DhcpOption::new(
             OptionTag::HostName,
             OptionData::HostName("hardcoded".to_string()),
@@ -439,6 +413,54 @@ impl Client {
     }
 
     fn make_request_message(&self) -> Result<Message, MessageError> {
+        let mut message = Message::new_with_xid(self.transaction_id);
+
+        // Set DHCP message type option
+        message.add_option(DhcpOption::new(
+            OptionTag::DhcpMessageType,
+            OptionData::DhcpMessageType(DhcpMessageType::Request),
+        ))?;
+
+        // Set maximum DHCP message size option
+        // TODO (Techassi): Don't hardcode this
+        message.add_option(DhcpOption::new(
+            OptionTag::MaxDhcpMessageSize,
+            OptionData::MaxDhcpMessageSize(1500),
+        ))?;
+
+        // Set DHCP hostname option
+        message.add_option(DhcpOption::new(
+            OptionTag::HostName,
+            OptionData::HostName("hardcoded".to_string()),
+        ))?;
+
+        // Set DHCP server identifier option
+        message.add_option(DhcpOption::new(
+            OptionTag::ServerIdentifier,
+            OptionData::ServerIdentifier(self.dhcp_server_ip_address.unwrap()),
+        ))?;
+
+        // Set DHCP requested IP address option
+        message.add_option(DhcpOption::new(
+            OptionTag::RequestedIpAddr,
+            OptionData::RequestedIpAddr(self.offered_ip_address),
+        ))?;
+
+        // Set DHCP IP address lease time
+        message.add_option(DhcpOption::new(
+            OptionTag::IpAddrLeaseTime,
+            OptionData::IpAddrLeaseTime(self.offered_time),
+        ))?;
+
+        message.add_option(self.default_request_parameter_list())?;
+        message.add_option(DhcpOption::new(OptionTag::End, OptionData::End))?;
+
+        message.set_hardware_address(self.hardware_address.clone());
+
+        Ok(message)
+    }
+
+    fn make_ack_message(&self) -> Result<Message, ClientError> {
         Ok(Message::default())
     }
 
