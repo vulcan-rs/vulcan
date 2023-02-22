@@ -7,7 +7,7 @@ args = ["build" , "-p", "vulcan-dhcpc"]
 
 [tasks.run-dhcpc]
 command = "sudo"
-args = ["./target/debug/vulcan-dhcpc"]
+args = ["./target/debug/vulcan-dhcpc", "--config", "vulcan-dhcpc.local.toml"]
 dependencies = ["build-dhcpc"]
 
 [tasks.build-dhcpd]

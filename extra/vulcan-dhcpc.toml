@@ -1,0 +1,4 @@
+interface = "eth0"
+bind_timeout = 2
+write_timeout = 2
+read_timeout = 2

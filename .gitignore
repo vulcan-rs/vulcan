@@ -1,1 +1,4 @@
 /target
+
+# Local config files
+*.local.toml
