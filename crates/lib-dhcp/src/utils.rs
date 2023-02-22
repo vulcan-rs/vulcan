@@ -1,5 +1,6 @@
 use std::{future::Future, time::Duration};
 
+use network_interface::{Error as InterfaceError, NetworkInterface, NetworkInterfaceConfig};
 use tokio::time::timeout as to;
 
 pub enum TimeoutResult<O, E> {
@@ -42,4 +43,45 @@ pub async fn timeout<T: Future<Output = Result<O, E>>, O, E>(
         },
         Err(_) => TimeoutResult::Timeout,
     }
+}
+
+pub fn select_network_interface(
+    name: &String,
+    fallback: bool,
+) -> Result<Option<NetworkInterface>, InterfaceError> {
+    let interfaces = NetworkInterface::show()?;
+
+    for interface in interfaces {
+        // Return immediately when we found the interface with the
+        // user-provided name
+        if interface.name == *name {
+            return Ok(Some(interface));
+        }
+
+        // If we don't want to fallback, continue
+        if !fallback {
+            continue;
+        }
+
+        // Filter out interfaces like loopback (lo) and wireguard (wgX)
+        if interface.name.starts_with("lo") || interface.name.starts_with("wg") {
+            continue;
+        }
+
+        // TODO (Techassi): This should also filter out null addresses
+        if interface.mac_addr.is_none() {
+            continue;
+        }
+
+        // Filter out interfaces with IPv6 addresses, as this DHCP
+        // implementation is aimed at IPv4
+        if interface.addr.filter(|a| a.ip().is_ipv6()).is_some() {
+            continue;
+        }
+
+        // The fallback interface
+        return Ok(Some(interface));
+    }
+
+    Ok(None)
 }

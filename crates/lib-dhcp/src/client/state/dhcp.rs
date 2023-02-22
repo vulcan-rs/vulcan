@@ -59,11 +59,11 @@ impl DhcpStateError {
     }
 }
 
-pub trait ClientStateMachine {
+pub trait DhcpStateMachine {
     fn transition_to(&mut self, state: DhcpState) -> Result<(), DhcpStateError>;
 }
 
-impl ClientStateMachine for Client {
+impl DhcpStateMachine for Client {
     fn transition_to(&mut self, state: DhcpState) -> Result<(), DhcpStateError> {
         match self.dhcp_state {
             DhcpState::Init => match state {

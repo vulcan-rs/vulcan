@@ -243,8 +243,26 @@ impl Message {
     pub fn get_message_type(&self) -> Option<&DhcpMessageType> {
         let option = self.get_option(OptionTag::DhcpMessageType)?;
         match option.data() {
-            OptionData::DhcpMessageType(ty) => return Some(ty),
-            _ => return None,
+            OptionData::DhcpMessageType(ty) => Some(ty),
+            _ => None,
+        }
+    }
+
+    /// Get renewal T1 time option
+    pub fn get_renewal_t1_time(&self) -> Option<&u32> {
+        let option = self.get_option(OptionTag::RenewalT1Time)?;
+        match option.data() {
+            OptionData::RenewalT1Time(time) => Some(time),
+            _ => None,
+        }
+    }
+
+    /// Get rebinding T2 time option
+    pub fn get_rebinding_t2_time(&self) -> Option<&u32> {
+        let option = self.get_option(OptionTag::RebindingT2Time)?;
+        match option.data() {
+            OptionData::RebindingT2Time(time) => Some(time),
+            _ => None,
         }
     }
 

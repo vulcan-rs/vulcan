@@ -132,8 +132,8 @@ pub enum OptionData {
     /// +-----+-----+-----+-----+
     /// ```
     MaxDhcpMessageSize(u16),
-    RenewalT1Time,
-    RebindingT2Time,
+    RenewalT1Time(u32),
+    RebindingT2Time(u32),
 
     /// #### Class-identifier
     ///
@@ -214,7 +214,7 @@ impl Writeable for OptionData {
             OptionData::NetbiosScope => todo!(),
             OptionData::XWindowSystemFontServer => todo!(),
             OptionData::XWindowSystemDisplayManager => todo!(),
-            OptionData::RequestedIpAddr(_) => todo!(),
+            OptionData::RequestedIpAddr(ip) => ip.write::<E>(buf)?,
             OptionData::IpAddrLeaseTime(time) => time.write::<E>(buf)?,
             OptionData::OptionOverload => todo!(),
             OptionData::DhcpMessageType(ty) => ty.write::<E>(buf)?,
@@ -222,8 +222,8 @@ impl Writeable for OptionData {
             OptionData::ParameterRequestList(list) => list.write::<E>(buf)?,
             OptionData::Message => todo!(),
             OptionData::MaxDhcpMessageSize(size) => size.write::<E>(buf)?,
-            OptionData::RenewalT1Time => todo!(),
-            OptionData::RebindingT2Time => todo!(),
+            OptionData::RenewalT1Time(time) => time.write::<E>(buf)?,
+            OptionData::RebindingT2Time(time) => time.write::<E>(buf)?,
             OptionData::ClassIdentifier(_) => todo!(),
             OptionData::ClientIdentifier(_) => todo!(),
         };
@@ -334,8 +334,8 @@ impl OptionData {
 
                 Self::MaxDhcpMessageSize(size)
             }
-            OptionTag::RenewalT1Time => todo!(),
-            OptionTag::RebindingT2Time => todo!(),
+            OptionTag::RenewalT1Time => Self::RenewalT1Time(u32::read::<E>(buf)?),
+            OptionTag::RebindingT2Time => Self::RebindingT2Time(u32::read::<E>(buf)?),
             OptionTag::ClassIdentifier => {
                 Self::ClassIdentifier(ClassIdentifier::read::<E>(buf, header.len)?)
             }
@@ -410,8 +410,8 @@ impl OptionData {
             OptionData::ParameterRequestList(l) => l.len() as u8,
             OptionData::Message => todo!(),
             OptionData::MaxDhcpMessageSize(_) => 2,
-            OptionData::RenewalT1Time => 4,
-            OptionData::RebindingT2Time => 4,
+            OptionData::RenewalT1Time(_) => 4,
+            OptionData::RebindingT2Time(_) => 4,
             OptionData::ClassIdentifier(_) => todo!(),
             OptionData::ClientIdentifier(_) => todo!(),
         }

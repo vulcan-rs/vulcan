@@ -25,6 +25,9 @@ pub enum ClientError {
     #[error("Parse hardware address error: {0}")]
     ParseHardwareAddrError(#[from] ParseHardwareAddrError),
 
+    #[error("No hardware/mac address on interface '{0}' found")]
+    NoHardwareAddressError(String),
+
     #[error("DHCP state error: {0}")]
     DhcpStateError(#[from] DhcpStateError),
 

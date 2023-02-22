@@ -81,6 +81,14 @@ impl TryFrom<String> for HardwareAddr {
     }
 }
 
+impl TryFrom<&String> for HardwareAddr {
+    type Error = <Self as TryFrom<String>>::Error;
+
+    fn try_from(value: &String) -> Result<Self, Self::Error> {
+        Self::try_from(value.clone())
+    }
+}
+
 impl HardwareAddr {
     pub fn read<E: Endianness>(buf: &mut ReadBuffer, hlen: u8) -> Result<Self, BufferError> {
         // The client hardware address can only be 16 bytes long at max
