@@ -697,8 +697,12 @@ dependencies = [
 name = "vulcan-dhcpc"
 version = "0.0.1"
 dependencies = [
+ "clap",
  "dhcp",
+ "serde",
+ "thiserror",
  "tokio",
+ "toml",
 ]
 
 [[package]]

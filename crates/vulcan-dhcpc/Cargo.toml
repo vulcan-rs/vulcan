@@ -4,5 +4,9 @@ version = "0.0.1"
 edition = "2021"
 
 [dependencies]
+thiserror = { workspace = true }
 dhcp = { path = "../lib-dhcp" }
 tokio = { workspace = true }
+serde = { workspace = true }
+toml = { workspace = true }
+clap = { workspace = true }
