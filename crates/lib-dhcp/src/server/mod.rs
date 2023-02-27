@@ -50,7 +50,7 @@ impl Server {
             // Wait until the socket is readable, this can produce a false positive
             socket.readable().await?;
 
-            let mut buf = [0u8; constants::DHCP_MINIMUM_LEGAL_MAX_MESSAGE_SIZE as usize];
+            let mut buf = [0u8; constants::MINIMUM_LEGAL_MAX_MESSAGE_SIZE as usize];
             let (len, addr) = match socket.recv_from(&mut buf).await {
                 Ok(result) => result,
                 Err(err) if err.kind() == std::io::ErrorKind::WouldBlock => {

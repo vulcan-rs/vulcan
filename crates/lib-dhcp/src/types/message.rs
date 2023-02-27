@@ -141,7 +141,7 @@ impl Readable for Message {
         let file = buf.read_vec(128)?;
 
         match buf.peekn::<4>() {
-            Some(m) if m == constants::DHCP_MAGIC_COOKIE_ARR => buf.skipn(4)?,
+            Some(m) if m == constants::MAGIC_COOKIE_ARR => buf.skipn(4)?,
             Some(_) => return Err(MessageError::BufferError(BufferError::InvalidData)),
             None => return Err(MessageError::BufferError(BufferError::BufTooShort)),
         };
@@ -198,7 +198,7 @@ impl Writeable for Message {
         n += self.file.write::<E>(buf)?;
 
         // Write magic cookie
-        n += buf.write(constants::DHCP_MAGIC_COOKIE_ARR);
+        n += buf.write(constants::MAGIC_COOKIE_ARR);
 
         n += self.options.write::<E>(buf)?;
 
