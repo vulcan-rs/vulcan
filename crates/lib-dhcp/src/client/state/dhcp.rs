@@ -12,6 +12,7 @@ pub enum DhcpState {
     Rebinding,
     Bound,
     Renewing,
+    RenewingSent,
 }
 
 impl Default for DhcpState {
@@ -31,6 +32,7 @@ impl Display for DhcpState {
             DhcpState::Rebinding => write!(f, "REBINDING"),
             DhcpState::Bound => write!(f, "BOUND"),
             DhcpState::Renewing => write!(f, "RENEWING"),
+            DhcpState::RenewingSent => write!(f, "RENEWINGSENT"),
         }
     }
 }
@@ -139,6 +141,21 @@ impl DhcpStateMachine for Client {
             },
             DhcpState::Renewing => match state {
                 next @ DhcpState::Init => {
+                    self.dhcp_state = next;
+                    Ok(())
+                }
+                next @ DhcpState::Rebinding => {
+                    self.dhcp_state = next;
+                    Ok(())
+                }
+                next @ DhcpState::Bound => {
+                    self.dhcp_state = next;
+                    Ok(())
+                }
+                _ => Err(DhcpStateError::new(self.dhcp_state.clone(), state)),
+            },
+            DhcpState::RenewingSent => match state {
+                next @ DhcpState::Renewing => {
                     self.dhcp_state = next;
                     Ok(())
                 }
