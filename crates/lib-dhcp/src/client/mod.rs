@@ -20,6 +20,7 @@ use crate::{
     utils, TimeoutResult, DHCP_MINIMUM_LEGAL_MAX_MESSAGE_SIZE, DHCP_SERVER_PORT,
 };
 
+mod cmd;
 mod error;
 mod state;
 

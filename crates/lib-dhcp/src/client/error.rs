@@ -4,7 +4,7 @@ use network_interface::Error as InterfaceError;
 use thiserror::Error;
 
 use crate::{
-    client::state::DhcpStateError,
+    client::{cmd::CmdError, state::DhcpStateError},
     types::{MessageError, ParseHardwareAddrError},
 };
 
@@ -33,6 +33,9 @@ pub enum ClientError {
 
     #[error("Message error: {0}")]
     MessageError(#[from] MessageError),
+
+    #[error("Command error: {0}")]
+    CmdError(#[from] CmdError),
 
     #[error("Invalid message format or length: {0}")]
     Invalid(String),
