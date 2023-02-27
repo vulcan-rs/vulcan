@@ -249,19 +249,19 @@ impl Message {
     }
 
     /// Get renewal T1 time option
-    pub fn get_renewal_t1_time(&self) -> Option<&u32> {
+    pub fn get_renewal_t1_time(&self) -> Option<u32> {
         let option = self.get_option(OptionTag::RenewalT1Time)?;
         match option.data() {
-            OptionData::RenewalT1Time(time) => Some(time),
+            OptionData::RenewalT1Time(time) => Some(*time),
             _ => None,
         }
     }
 
     /// Get rebinding T2 time option
-    pub fn get_rebinding_t2_time(&self) -> Option<&u32> {
+    pub fn get_rebinding_t2_time(&self) -> Option<u32> {
         let option = self.get_option(OptionTag::RebindingT2Time)?;
         match option.data() {
-            OptionData::RebindingT2Time(time) => Some(time),
+            OptionData::RebindingT2Time(time) => Some(*time),
             _ => None,
         }
     }
@@ -270,6 +270,10 @@ impl Message {
         // TODO (Techassi): We should return a u8. This would make the len call falliable tho
         self.header.hlen = haddr.len() as u8;
         self.chaddr = haddr;
+    }
+
+    pub fn set_is_broadcast(&mut self, is_broadcast: bool) {
+        self.header.flags = if is_broadcast { 0x8000 } else { 0x0000 }
     }
 
     pub fn add_option(&mut self, option: DhcpOption) -> Result<(), MessageError> {
@@ -284,5 +288,19 @@ impl Message {
 
         self.options.push(option);
         Ok(())
+    }
+
+    pub fn add_option_parts(
+        &mut self,
+        tag: OptionTag,
+        data: OptionData,
+    ) -> Result<(), MessageError> {
+        let option = DhcpOption::new(tag, data);
+        self.add_option(option)
+    }
+
+    /// Adds the DHCP End option.
+    pub fn end(&mut self) -> Result<(), MessageError> {
+        self.add_option(DhcpOption::new(OptionTag::End, OptionData::End))
     }
 }

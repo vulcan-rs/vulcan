@@ -114,6 +114,10 @@ impl HardwareAddr {
     pub fn is_empty(&self) -> bool {
         self.addr.is_empty()
     }
+
+    pub fn as_bytes(&self) -> Vec<u8> {
+        self.addr.to_owned()
+    }
 }
 
 #[test]

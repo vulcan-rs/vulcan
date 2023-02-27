@@ -11,7 +11,7 @@ use crate::{
         },
         OptionHeader, OptionTag,
     },
-    DHCP_MINIMUM_LEGAL_MAX_MESSAGE_SIZE,
+    MINIMUM_LEGAL_MAX_MESSAGE_SIZE,
 };
 
 #[derive(Debug, Error)]
@@ -328,7 +328,7 @@ impl OptionData {
             OptionTag::MaxDhcpMessageSize => {
                 let size = u16::read::<E>(buf)?;
 
-                if size < DHCP_MINIMUM_LEGAL_MAX_MESSAGE_SIZE {
+                if size < MINIMUM_LEGAL_MAX_MESSAGE_SIZE {
                     return Err(OptionDataError::InvalidDhcpMessageSize);
                 }
 

@@ -8,4 +8,8 @@ pub struct ClientState {
     pub rebinding_time: Option<u32>,
     pub renewal_time: Option<u32>,
     pub transaction_id: u32,
+
+    // Timers
+    pub rebinding_time_left: Option<u32>,
+    pub renewal_time_left: Option<u32>,
 }

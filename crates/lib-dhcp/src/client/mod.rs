@@ -12,14 +12,19 @@ use tokio::{
 };
 
 use crate::{
-    client::state::{ClientState, DhcpState, DhcpStateMachine},
+    client::{
+        builder::MessageBuilder,
+        state::{ClientState, DhcpState, DhcpStateMachine},
+    },
     types::{
         options::{DhcpMessageType, ParameterRequestList},
         DhcpOption, HardwareAddr, Message, MessageError, OptionData, OptionTag,
     },
-    utils, TimeoutResult, DHCP_MINIMUM_LEGAL_MAX_MESSAGE_SIZE, DHCP_SERVER_PORT,
+    utils, TimeoutResult, MINIMAL_RETRANS_DURATION_SECS, MINIMUM_LEGAL_MAX_MESSAGE_SIZE,
+    SERVER_PORT,
 };
 
+mod builder;
 mod cmd;
 mod error;
 mod state;
@@ -37,9 +42,18 @@ pub struct ClientBuilder {
     /// Duration before the write process of DHCP requests times out.
     write_timeout: time::Duration,
 
-    interface: String,
+    /// Optional client identifier, fallsback to the hardware addr.
+    client_identifier: Option<Vec<u8>>,
 
+    /// Max DHCP message size, default value is 1500.
+    max_dhcp_message_size: u16,
+
+    /// Fallback to appropriate alternative network interface if no interface
+    /// with the provided name was found.
     interface_fallback: bool,
+
+    /// Network interface name
+    interface: String,
 }
 
 impl Default for ClientBuilder {
@@ -49,7 +63,9 @@ impl Default for ClientBuilder {
             read_timeout: time::Duration::from_secs(2),
             write_timeout: time::Duration::from_secs(2),
             interface: String::from("eth0"),
+            max_dhcp_message_size: 1500,
             interface_fallback: false,
+            client_identifier: None,
         }
     }
 }
@@ -67,6 +83,12 @@ impl ClientBuilder {
             None => return Err(ClientError::NoHardwareAddressError(interface.name)),
         };
 
+        let builder = MessageBuilder::new(
+            hardware_address.clone(),
+            self.client_identifier,
+            self.max_dhcp_message_size,
+        );
+
         Ok(Client {
             client_state: ClientState::default(),
             write_timeout: self.write_timeout,
@@ -75,6 +97,7 @@ impl ClientBuilder {
             read_timeout: self.read_timeout,
             hardware_address,
             interface,
+            builder,
         })
     }
 
@@ -102,6 +125,16 @@ impl ClientBuilder {
         self.interface_fallback = fallback;
         self
     }
+
+    pub fn with_client_identifier<T: Into<Vec<u8>>>(mut self, identifier: T) -> Self {
+        self.client_identifier = Some(identifier.into());
+        self
+    }
+
+    pub fn with_max_dhcp_message_size(mut self, size: u16) -> Self {
+        self.max_dhcp_message_size = size;
+        self
+    }
 }
 
 pub struct Client {
@@ -125,6 +158,9 @@ pub struct Client {
 
     /// DHCP state
     dhcp_state: DhcpState,
+
+    /// Message builder
+    builder: MessageBuilder,
 }
 
 impl Client {
@@ -164,8 +200,9 @@ impl Client {
 
                     // Lease expired (DHCPNAK), return to INIT
                 }
-                DhcpState::Bound => self.handle_state_bound(&socket).await?,
+                DhcpState::Bound => self.handle_state_bound().await?,
                 DhcpState::Renewing => self.handle_state_renewing(&socket).await?,
+                DhcpState::RenewingSent => self.handle_state_renewing_sent(&socket).await?,
             }
         }
     }
@@ -183,7 +220,12 @@ impl Client {
 
         // Send DHCPDISCOVER message
         println!("Sending DHCPDISCOVER message");
-        let discover_message = self.make_discover_message()?;
+        let discover_message = self.builder.discover_message(
+            self.get_xid(),
+            Some(self.destination_addr()),
+            None,
+            None,
+        )?;
         self.send_message(discover_message, &socket).await?;
 
         // Transition to SELECTING
@@ -296,23 +338,17 @@ impl Client {
         }
 
         // Set lease, T1 and T2 timers (DHCPACK)
-        match message.get_renewal_t1_time() {
-            Some(time) => self.client_state.renewal_time = Some(*time),
-            None => {
-                // Fallback to 50% of offered IP address lease time for Renewal (T1) time
-                let time = (self.client_state.offered_lease_time.unwrap() as f64 * 0.5) as u32;
-                self.client_state.renewal_time = Some(time)
-            }
-        }
+        self.client_state.renewal_time = Some(
+            message
+                .get_renewal_t1_time()
+                .unwrap_or((self.client_state.offered_lease_time.unwrap() as f64 * 0.5) as u32),
+        );
 
-        match message.get_rebinding_t2_time() {
-            Some(time) => self.client_state.rebinding_time = Some(*time),
-            None => {
-                // Fallback to 87.5% of offered IP address lease time for Rebinding (T2) time
-                let time = (self.client_state.offered_lease_time.unwrap() as f64 * 0.875) as u32;
-                self.client_state.rebinding_time = Some(time)
-            }
-        }
+        self.client_state.rebinding_time = Some(
+            message
+                .get_rebinding_t2_time()
+                .unwrap_or((self.client_state.offered_lease_time.unwrap() as f64 * 0.875) as u32),
+        );
 
         println!(
             "ip -4 addr add {} dev {}",
@@ -328,8 +364,20 @@ impl Client {
         Ok(self.transition_to(DhcpState::Bound)?)
     }
 
+    async fn handle_state_rebinding(&mut self) -> Result<(), ClientError> {
+        // Set lease, T1 and T2 timers (DHCPACK)
+        // Transition to BOUND
+
+        // Lease expired (DHCPNAK), return to INIT
+        Ok(())
+    }
+
+    async fn handle_state_rebinding_sent(&mut self) -> Result<(), ClientError> {
+        Ok(())
+    }
+
     /// Handle the DHCP state BOUND.
-    async fn handle_state_bound(&mut self, socket: &UdpSocket) -> Result<(), ClientError> {
+    async fn handle_state_bound(&mut self) -> Result<(), ClientError> {
         println!("Entering BOUND");
         // Remain in this state. Discard incoming
         // DHCPOFFER, DHCPACK and DHCPNAK
@@ -345,30 +393,106 @@ impl Client {
             }
         }
 
-        println!("Sending DHCPREQUEST");
-        let request_message = self.make_request_message()?;
-        self.send_message(request_message, socket).await?;
-
         // Transition to RENEWING
         Ok(self.transition_to(DhcpState::Renewing)?)
     }
 
+    /// Handle the DHCP state RENEWING. This method sends out the DHCP message
+    /// and immediatly transitions to the intermediate state RENEWINGSENT. This
+    /// state is officially not part of the state machine described by RFC
+    /// 2131, but this implementation introduces this state to be able to
+    /// return back to here in case the T1 timer ticks which should trigger a
+    /// retransmission of the DHCPREQUEST message.
     async fn handle_state_renewing(&mut self, socket: &UdpSocket) -> Result<(), ClientError> {
         println!("Entering RENEWING");
+
+        println!("Sending DHCPREQUEST");
+        let request_message = self.make_request_message()?;
+        self.send_message(request_message, socket).await?;
+
+        Ok(self.transition_to(DhcpState::RenewingSent)?)
+    }
+
+    /// Handle the intermediate state RENEWINGSENT. This method listens for
+    /// incoming messages after sending out a DHCPREQUEST message to renew the
+    /// lease. If
+    async fn handle_state_renewing_sent(&mut self, socket: &UdpSocket) -> Result<(), ClientError> {
+        println!("Entering RENEWINGSENT");
+
+        let (message, _addr) = match self.recv_message(socket).await? {
+            Some(result) => result,
+            None => match &self.client_state.renewal_time_left {
+                Some(time) => {
+                    // We dropped below the minimal retransmission timer,
+                    // transition to REBINDING.
+                    if *time < MINIMAL_RETRANS_DURATION_SECS * 2 {
+                        return Ok(self.transition_to(DhcpState::Rebinding)?);
+                    }
+
+                    // We still have time left to receive a response.
+                    self.client_state.renewal_time_left = Some((time / 2) as u32);
+                    return Ok(self.transition_to(DhcpState::Renewing)?);
+                }
+                None => {
+                    return Err(ClientError::Invalid(String::from(
+                        "RENEWING: No renewal (T1) timer",
+                    )))
+                }
+            },
+        };
+
+        // TODO (Techassi): All this stuff below can be extracted into a method
         // Set lease, T1 and T2 timers (DHCPACK)
+        match message.get_message_type() {
+            Some(ty) => match ty {
+                DhcpMessageType::Nak => {
+                    self.transition_to(DhcpState::Init)?;
+                    return Ok(());
+                }
+                DhcpMessageType::Ack => {}
+                _ => return Ok(()), // NOTE (Techassi): How should we handle other message types?
+            },
+            None => return Ok(()),
+        }
 
-        // DHCPNAK, return to INIT
+        // Set lease, T1 and T2 timers (DHCPACK)
+        self.client_state.renewal_time = Some(
+            message
+                .get_renewal_t1_time()
+                .unwrap_or((self.client_state.offered_lease_time.unwrap() as f64 * 0.5) as u32),
+        );
 
-        // T2 expires, broadcast DHCPREQUEST
-        // Transition to REBINDING
+        self.client_state.rebinding_time = Some(
+            message
+                .get_rebinding_t2_time()
+                .unwrap_or((self.client_state.offered_lease_time.unwrap() as f64 * 0.875) as u32),
+        );
+
+        println!(
+            "ip -4 addr add {} dev {}",
+            self.client_state.offered_ip_address.unwrap(),
+            self.interface.name
+        );
+        cmd::add_ip_address(
+            &self.client_state.offered_ip_address.unwrap(),
+            &self.interface.name,
+        )?;
 
         Ok(())
     }
 
+    /// Returns the current transaction ID.
     fn get_xid(&self) -> u32 {
         self.client_state.transaction_id
     }
 
+    /// Renews the transaction ID by selecting a new, random one.
+    fn renew_xid(&mut self) {
+        self.client_state.transaction_id = rand::random()
+    }
+
+    /// Returns the destination address. This is either the IP address of the
+    /// current DHCP server or the IPv4 broadcast address.
     fn destination_addr(&self) -> Ipv4Addr {
         match self.client_state.server_identifier {
             Some(ip) => ip,
@@ -399,7 +523,7 @@ impl Client {
 
         // Create an empty (all 0s) buffer with the minimum legal max DHCP
         // message size
-        let mut buf = vec![0u8; DHCP_MINIMUM_LEGAL_MAX_MESSAGE_SIZE.into()];
+        let mut buf = vec![0u8; MINIMUM_LEGAL_MAX_MESSAGE_SIZE.into()];
 
         let (buf, addr) = match sock.try_recv_from(&mut buf) {
             Ok((len, addr)) => (&buf[..len], addr),
@@ -427,79 +551,33 @@ impl Client {
 
         // Off to the wire the bytes go
         socket
-            .send_to(buf.bytes(), (destination_addr, DHCP_SERVER_PORT))
+            .send_to(buf.bytes(), (destination_addr, SERVER_PORT))
             .await?;
 
         Ok(())
-    }
-
-    /// This creates a new DHCPDISCOVER message with the values described in
-    /// RFC 2131 Section 4.4.1
-    fn make_discover_message(&mut self) -> Result<Message, MessageError> {
-        // The client sets 'ciaddr' to 0x00000000. This is already done in
-        // Message::new() (Default value).
-        let mut message = Message::new_with_xid(self.get_xid());
-
-        // Set DHCP options
-        // Set DHCP message type option
-        message.add_option(DhcpOption::new(
-            OptionTag::DhcpMessageType,
-            OptionData::DhcpMessageType(DhcpMessageType::Discover),
-        ))?;
-
-        // Maximum DHCP message size
-        // TODO (Techassi): Don't hardcode this
-        message.add_option(DhcpOption::new(
-            OptionTag::MaxDhcpMessageSize,
-            OptionData::MaxDhcpMessageSize(1500),
-        ))?;
-
-        // Set DHCP hostname option
-        message.add_option(DhcpOption::new(
-            OptionTag::HostName,
-            OptionData::HostName("hardcoded".to_string()),
-        ))?;
-
-        // The client MAY request specific parameters by including the
-        // 'parameter request list' option.
-        message.add_option(self.default_request_parameter_list())?;
-        message.add_option(DhcpOption::new(OptionTag::End, OptionData::End))?;
-
-        // The client MAY suggest a network address and/or lease time by
-        // including the 'requested IP address' and 'IP address lease time'
-        // options.
-
-        // The client MUST include its hardware address in the 'chaddr' field,
-        // if necessary for delivery of DHCP reply messages.
-        message.set_hardware_address(self.hardware_address.clone());
-
-        // The client MAY include a different unique identifier in the 'client
-        // identifier' option, as discussed in section 4.2.
-
-        Ok(message)
     }
 
     fn make_request_message(&self) -> Result<Message, MessageError> {
         let mut message = Message::new_with_xid(self.get_xid());
 
         // Set DHCP message type option
-        message.add_option(DhcpOption::new(
+        message.add_option_parts(
             OptionTag::DhcpMessageType,
             OptionData::DhcpMessageType(DhcpMessageType::Request),
-        ))?;
+        )?;
 
         // Set maximum DHCP message size option
         // TODO (Techassi): Don't hardcode this
-        message.add_option(DhcpOption::new(
+        message.add_option_parts(
             OptionTag::MaxDhcpMessageSize,
             OptionData::MaxDhcpMessageSize(1500),
-        ))?;
+        )?;
 
         // Set DHCP hostname option
-        message.add_option(DhcpOption::new(
+        message.add_option_parts(
             OptionTag::HostName,
             OptionData::HostName("hardcoded".to_string()),
-        ))?;
+        )?;
 
         // Set DHCP server identifier option
         message.add_option(DhcpOption::new(
