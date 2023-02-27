@@ -23,6 +23,7 @@ use crate::{
 mod cmd;
 mod error;
 mod state;
+mod timers;
 
 pub use error::ClientError;
 
@@ -145,6 +146,9 @@ impl Client {
         socket.bind_device(Some(self.interface.name.as_bytes()))?;
         socket.set_broadcast(true)?;
 
+        // Ensure the interface is UP
+        cmd::set_interface_up(&self.interface.name)?;
+
         loop {
             // We now use a state machine to keep track of the client state.
             // This is described in 4.4: https://www.rfc-editor.org/rfc/rfc2131#section-4.4
@@ -160,15 +164,8 @@ impl Client {
 
                     // Lease expired (DHCPNAK), return to INIT
                 }
-                DhcpState::Bound => self.handle_state_bound().await?,
-                DhcpState::Renewing => {
-                    // Set lease, T1 and T2 timers (DHCPACK)
-
-                    // DHCPNAK, return to INIT
-
-                    // T2 expires, broadcast DHCPREQUEST
-                    // Transition to REBINDING
-                }
+                DhcpState::Bound => self.handle_state_bound(&socket).await?,
+                DhcpState::Renewing => self.handle_state_renewing(&socket).await?,
             }
         }
     }
@@ -302,18 +299,18 @@ impl Client {
         match message.get_renewal_t1_time() {
             Some(time) => self.client_state.renewal_time = Some(*time),
             None => {
-                return Err(ClientError::Invalid(String::from(
-                    "Renewal (T1) timer must be set",
-                )))
+                // Fallback to 50% of offered IP address lease time for Renewal (T1) time
+                let time = (self.client_state.offered_lease_time.unwrap() as f64 * 0.5) as u32;
+                self.client_state.renewal_time = Some(time)
             }
         }
 
         match message.get_rebinding_t2_time() {
-            Some(time) => self.client_state.rebinding_timer = Some(*time),
+            Some(time) => self.client_state.rebinding_time = Some(*time),
             None => {
-                return Err(ClientError::Invalid(String::from(
-                    "Rebinding (T2) time must be set",
-                )))
+                // Fallback to 87.5% of offered IP address lease time for Rebinding (T2) time
+                let time = (self.client_state.offered_lease_time.unwrap() as f64 * 0.875) as u32;
+                self.client_state.rebinding_time = Some(time)
             }
         }
 
@@ -322,22 +319,23 @@ impl Client {
             self.client_state.offered_ip_address.unwrap(),
             self.interface.name
         );
-
-        // Send DHCPACK message
-        println!("Sending DHCPACK message");
-        let ack_message = self.make_ack_message()?;
-        self.send_message(ack_message, &socket).await?;
+        cmd::add_ip_address(
+            &self.client_state.offered_ip_address.unwrap(),
+            &self.interface.name,
+        )?;
 
         // Transition to BOUND
         Ok(self.transition_to(DhcpState::Bound)?)
     }
 
     /// Handle the DHCP state BOUND.
-    async fn handle_state_bound(&mut self) -> Result<(), ClientError> {
+    async fn handle_state_bound(&mut self, socket: &UdpSocket) -> Result<(), ClientError> {
+        println!("Entering BOUND");
         // Remain in this state. Discard incoming
         // DHCPOFFER, DHCPACK and DHCPNAK
 
         // T1 expires, send DHCPREQUEST to leasing server
+        println!("Waiting for T1 to expire, then sending DHCPREQUEST");
         match &self.client_state.renewal_time {
             Some(time) => sleep(Duration::from_secs(*time as u64)).await,
             None => {
@@ -347,8 +345,24 @@ impl Client {
             }
         }
 
+        println!("Sending DHCPREQUEST");
+        let request_message = self.make_request_message()?;
+        self.send_message(request_message, socket).await?;
+
         // Transition to RENEWING
         Ok(self.transition_to(DhcpState::Renewing)?)
+    }
+
+    async fn handle_state_renewing(&mut self, socket: &UdpSocket) -> Result<(), ClientError> {
+        println!("Entering RENEWING");
+        // Set lease, T1 and T2 timers (DHCPACK)
+
+        // DHCPNAK, return to INIT
+
+        // T2 expires, broadcast DHCPREQUEST
+        // Transition to REBINDING
+
+        Ok(())
     }
 
     fn get_xid(&self) -> u32 {
