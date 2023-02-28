@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/*"]
+members = ["crates/*", "bins/*"]
 
 [workspace.dependencies]
 tokio = { version = "1.21.2", features = ["net", "macros", "rt", "rt-multi-thread", "time"] }
