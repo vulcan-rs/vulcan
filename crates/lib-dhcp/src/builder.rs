@@ -2,7 +2,7 @@ use std::net::Ipv4Addr;
 
 use crate::types::{
     options::{ClientIdentifier, DhcpMessageType, ParameterRequestList},
-    DhcpOption, HardwareAddr, Header, Message, MessageError, OptionData, OptionTag,
+    DhcpOption, HardwareAddr, Message, MessageError, OptionData, OptionTag,
 };
 
 pub struct MessageBuilder {
@@ -24,9 +24,9 @@ impl MessageBuilder {
         }
     }
 
-    // This creates a new DHCPDISCOVER message with the values described in
-    /// RFC 2131 Section 4.4.1
-    pub fn discover_message(
+    /// This creates a new DHCPDISCOVER message with the values described in
+    /// RFC 2131 Section 4.
+    pub fn make_discover_message(
         &mut self,
         xid: u32,
         destination_addr: Option<Ipv4Addr>,
@@ -87,6 +87,48 @@ impl MessageBuilder {
 
         // The client MAY request specific parameters by including the
         // 'parameter request list' option.
+        message.add_option(Self::default_request_parameter_list())?;
+        message.end()?;
+
+        message.set_hardware_address(self.client_hardware_addr.clone());
+        Ok(message)
+    }
+
+    /// This creates a new DHCPREQUEST message with the values described in
+    /// RFC 2131 Section 4.
+    pub fn make_request_message(
+        &self,
+        xid: u32,
+        destination_addr: Ipv4Addr,
+        offered_addr: Ipv4Addr,
+        offered_lease_time: u32,
+    ) -> Result<Message, MessageError> {
+        let mut message = Message::new_with_xid(xid);
+        self.add_default_options(&mut message)?;
+
+        // Set DHCP message type option
+        message.add_option_parts(
+            OptionTag::DhcpMessageType,
+            OptionData::DhcpMessageType(DhcpMessageType::Request),
+        )?;
+
+        message.add_option_parts(
+            OptionTag::ServerIdentifier,
+            OptionData::ServerIdentifier(destination_addr),
+        )?;
+
+        message.add_option_parts(
+            OptionTag::RequestedIpAddr,
+            OptionData::RequestedIpAddr(offered_addr),
+        )?;
+
+        message.add_option_parts(
+            OptionTag::IpAddrLeaseTime,
+            OptionData::IpAddrLeaseTime(offered_lease_time),
+        )?;
+
+        // NOTE (Techassi): Maybe add hostname option
+
         message.add_option(Self::default_request_parameter_list())?;
         message.end()?;
 

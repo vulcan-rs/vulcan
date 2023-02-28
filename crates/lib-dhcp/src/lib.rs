@@ -1,5 +1,6 @@
 pub mod types;
 
+mod builder;
 mod client;
 mod constants;
 mod error;

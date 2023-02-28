@@ -12,19 +12,13 @@ use tokio::{
 };
 
 use crate::{
-    client::{
-        builder::MessageBuilder,
-        state::{ClientState, DhcpState, DhcpStateMachine},
-    },
-    types::{
-        options::{DhcpMessageType, ParameterRequestList},
-        DhcpOption, HardwareAddr, Message, MessageError, OptionData, OptionTag,
-    },
+    builder::MessageBuilder,
+    client::state::{ClientState, DhcpState, DhcpStateMachine},
+    types::{options::DhcpMessageType, HardwareAddr, Message, OptionData, OptionTag},
     utils, TimeoutResult, MINIMAL_RETRANS_DURATION_SECS, MINIMUM_LEGAL_MAX_MESSAGE_SIZE,
     SERVER_PORT,
 };
 
-mod builder;
 mod cmd;
 mod error;
 mod state;
