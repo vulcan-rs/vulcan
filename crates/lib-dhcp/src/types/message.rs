@@ -229,6 +229,17 @@ impl Message {
         }
     }
 
+    pub fn valid_xid(&self, xid: u32) -> bool {
+        self.header.xid == xid
+    }
+
+    pub fn valid_message_type(&self, ty: DhcpMessageType) -> bool {
+        match self.get_message_type() {
+            Some(t) => t == &ty,
+            None => false,
+        }
+    }
+
     /// Get DHCP option by tag. Returns [`None`] if no such option is presnt.
     pub fn get_option(&self, tag: OptionTag) -> Option<&DhcpOption> {
         for option in &self.options {

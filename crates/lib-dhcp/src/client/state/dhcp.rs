@@ -7,9 +7,12 @@ pub enum DhcpState {
     Init,
     InitReboot,
     Selecting,
+    SelectingSent,
     Rebooting,
     Requesting,
+    RequestingSent,
     Rebinding,
+    RebindingSent,
     Bound,
     Renewing,
     RenewingSent,
@@ -27,12 +30,15 @@ impl Display for DhcpState {
             DhcpState::Init => write!(f, "INIT"),
             DhcpState::InitReboot => write!(f, "INIT-REBOOT"),
             DhcpState::Selecting => write!(f, "SELECTING"),
+            DhcpState::SelectingSent => write!(f, "SELECTING-SENT"),
             DhcpState::Rebooting => write!(f, "REBOOTING"),
             DhcpState::Requesting => write!(f, "REQUESTING"),
+            DhcpState::RequestingSent => write!(f, "REQUESTING-SENT"),
             DhcpState::Rebinding => write!(f, "REBINDING"),
+            DhcpState::RebindingSent => write!(f, "REBINDING-SENT"),
             DhcpState::Bound => write!(f, "BOUND"),
             DhcpState::Renewing => write!(f, "RENEWING"),
-            DhcpState::RenewingSent => write!(f, "RENEWINGSENT"),
+            DhcpState::RenewingSent => write!(f, "RENEWING-SENT"),
         }
     }
 }
@@ -77,6 +83,13 @@ impl DhcpStateMachine for Client {
             },
             DhcpState::InitReboot => todo!(),
             DhcpState::Selecting => match state {
+                next @ DhcpState::SelectingSent => {
+                    self.dhcp_state = next;
+                    Ok(())
+                }
+                _ => Err(DhcpStateError::new(self.dhcp_state.clone(), state)),
+            },
+            DhcpState::SelectingSent => match state {
                 next @ DhcpState::Selecting => {
                     self.dhcp_state = next;
                     Ok(())
@@ -103,6 +116,13 @@ impl DhcpStateMachine for Client {
                 _ => Err(DhcpStateError::new(self.dhcp_state.clone(), state)),
             },
             DhcpState::Requesting => match state {
+                next @ DhcpState::RequestingSent => {
+                    self.dhcp_state = next;
+                    Ok(())
+                }
+                _ => Err(DhcpStateError::new(self.dhcp_state.clone(), state)),
+            },
+            DhcpState::RequestingSent => match state {
                 next @ DhcpState::Init => {
                     self.dhcp_state = next;
                     Ok(())
@@ -118,6 +138,13 @@ impl DhcpStateMachine for Client {
                 _ => Err(DhcpStateError::new(self.dhcp_state.clone(), state)),
             },
             DhcpState::Rebinding => match state {
+                next @ DhcpState::RebindingSent => {
+                    self.dhcp_state = next;
+                    Ok(())
+                }
+                _ => Err(DhcpStateError::new(self.dhcp_state.clone(), state)),
+            },
+            DhcpState::RebindingSent => match state {
                 next @ DhcpState::Init => {
                     self.dhcp_state = next;
                     Ok(())
@@ -140,21 +167,17 @@ impl DhcpStateMachine for Client {
                 _ => Err(DhcpStateError::new(self.dhcp_state.clone(), state)),
             },
             DhcpState::Renewing => match state {
-                next @ DhcpState::Init => {
-                    self.dhcp_state = next;
-                    Ok(())
-                }
-                next @ DhcpState::Rebinding => {
-                    self.dhcp_state = next;
-                    Ok(())
-                }
-                next @ DhcpState::Bound => {
+                next @ DhcpState::RenewingSent => {
                     self.dhcp_state = next;
                     Ok(())
                 }
                 _ => Err(DhcpStateError::new(self.dhcp_state.clone(), state)),
             },
             DhcpState::RenewingSent => match state {
+                next @ DhcpState::Init => {
+                    self.dhcp_state = next;
+                    Ok(())
+                }
                 next @ DhcpState::Renewing => {
                     self.dhcp_state = next;
                     Ok(())

@@ -30,7 +30,7 @@ impl MessageBuilder {
         &mut self,
         xid: u32,
         destination_addr: Option<Ipv4Addr>,
-        requested_addr: Option<Ipv4Addr>,
+        requested_client_addr: Option<Ipv4Addr>,
         requested_lease_time: Option<u32>,
     ) -> Result<Message, MessageError> {
         // The client sets 'ciaddr' to 0x00000000. This is already done in
@@ -57,10 +57,10 @@ impl MessageBuilder {
         // The client MAY suggest a network address and/or lease time by
         // including the 'requested IP address' and 'IP address lease time'
         // options.
-        if requested_addr.is_some() {
+        if requested_client_addr.is_some() {
             message.add_option_parts(
                 OptionTag::RequestedIpAddr,
-                OptionData::RequestedIpAddr(requested_addr.unwrap()),
+                OptionData::RequestedIpAddr(requested_client_addr.unwrap()),
             )?
         }
 
@@ -100,7 +100,7 @@ impl MessageBuilder {
         &self,
         xid: u32,
         destination_addr: Ipv4Addr,
-        offered_addr: Ipv4Addr,
+        offered_client_addr: Ipv4Addr,
         offered_lease_time: u32,
     ) -> Result<Message, MessageError> {
         let mut message = Message::new_with_xid(xid);
@@ -119,12 +119,50 @@ impl MessageBuilder {
 
         message.add_option_parts(
             OptionTag::RequestedIpAddr,
-            OptionData::RequestedIpAddr(offered_addr),
+            OptionData::RequestedIpAddr(offered_client_addr),
         )?;
 
         message.add_option_parts(
             OptionTag::IpAddrLeaseTime,
             OptionData::IpAddrLeaseTime(offered_lease_time),
+        )?;
+
+        // NOTE (Techassi): Maybe add hostname option
+
+        message.add_option(Self::default_request_parameter_list())?;
+        message.end()?;
+
+        message.set_hardware_address(self.client_hardware_addr.clone());
+        Ok(message)
+    }
+
+    /// Creates a new DHCPREQUEST message in BOUND, RENEWING or REBINDING state.
+    pub fn make_renewing_message(
+        &self,
+        xid: u32,
+        client_addr: Ipv4Addr,
+        lease_time: u32,
+    ) -> Result<Message, MessageError> {
+        let mut message = Message::new_with_xid(xid);
+        self.add_default_options(&mut message)?;
+
+        // Set ciaddr
+        message.ciaddr = client_addr;
+
+        // Set DHCP message type option
+        message.add_option_parts(
+            OptionTag::DhcpMessageType,
+            OptionData::DhcpMessageType(DhcpMessageType::Request),
+        )?;
+
+        message.add_option_parts(
+            OptionTag::RequestedIpAddr,
+            OptionData::RequestedIpAddr(client_addr),
+        )?;
+
+        message.add_option_parts(
+            OptionTag::IpAddrLeaseTime,
+            OptionData::IpAddrLeaseTime(lease_time),
         )?;
 
         // NOTE (Techassi): Maybe add hostname option
