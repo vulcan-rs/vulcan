@@ -4,9 +4,12 @@ version = "0.0.1"
 edition = "2021"
 
 [dependencies]
+async-trait = { workspace = true }
+serde_json = { workspace = true }
 thiserror = { workspace = true }
 binbuf = { workspace = true }
 tokio = { workspace = true }
+serde = { workspace = true }
 rand = { workspace = true }
 network-interface = "0.1.6"
 
