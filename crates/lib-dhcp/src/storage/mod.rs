@@ -1,10 +1,9 @@
-use std::hash::Hash;
+use std::{fmt::Display, hash::Hash};
 
+use async_trait::async_trait;
 use thiserror::Error;
 
 use crate::types::Lease;
-
-pub type StorageResult<T> = Result<T, StorageError>;
 
 #[derive(Debug, Error)]
 pub enum StorageError {
@@ -23,11 +22,19 @@ pub enum StorageError {
     Unknown(String),
 }
 
+#[async_trait]
 pub trait Storage {
-    type Key: Hash;
+    type Error: Display + std::error::Error + From<StorageError>;
+    type Key: Hash + Display;
 
-    fn retrieve_lease(&self, key: Self::Key) -> StorageResult<&Lease>;
-    fn store_lease<L: IntoLease>(&mut self, key: Self::Key, lease: L) -> StorageResult<()>;
+    async fn retrieve_lease(&self, key: Self::Key) -> Option<Lease>;
+    async fn store_lease<L: IntoLease<Error = Self::Error>>(
+        &mut self,
+        key: Self::Key,
+        lease: L,
+    ) -> Result<(), Self::Error>;
+
+    async fn run_flush(&self) -> Result<(), Self::Error>;
 
     fn len(&self) -> usize;
     fn is_empty(&self) -> bool {
@@ -35,7 +42,7 @@ pub trait Storage {
     }
 }
 
-pub trait IntoLease {
+pub trait IntoLease: Send {
     type Error: std::fmt::Display + std::error::Error;
 
     fn try_into_lease(&self) -> Result<Lease, Self::Error>;

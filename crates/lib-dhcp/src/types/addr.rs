@@ -1,6 +1,7 @@
 use std::{fmt::Display, num::ParseIntError};
 
 use binbuf::prelude::*;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -15,7 +16,7 @@ pub enum ParseHardwareAddrError {
     InvalidLength(usize),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash, Deserialize, Serialize)]
 pub struct HardwareAddr {
     padding: Vec<u8>,
     addr: Vec<u8>,

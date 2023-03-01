@@ -9,6 +9,9 @@ use crate::{
     types::{options::DhcpMessageType, Message},
 };
 
+mod builder;
+mod storage;
+
 pub struct Session {
     socket: Arc<net::UdpSocket>,
     addr: SocketAddr,

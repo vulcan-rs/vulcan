@@ -1,11 +1,14 @@
 use std::{net::Ipv4Addr, time::Instant};
 
+use serde::{Deserialize, Serialize};
+
 use crate::types::HardwareAddr;
 
-#[derive(Debug)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct Lease {
     hardware_addr: HardwareAddr,
-    leased_until: Instant,
+    // FIXME (Techassi): I guess we should switch to chrono
+    // leased_until: Instant,
     ip_addr: Ipv4Addr,
     lease_time: u32,
 }
