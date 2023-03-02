@@ -15,6 +15,7 @@ use crate::{
 
 mod builder;
 mod config;
+mod pool;
 mod storage;
 
 pub struct Session {
