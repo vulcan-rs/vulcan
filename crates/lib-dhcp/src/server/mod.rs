@@ -6,10 +6,15 @@ use tokio::{self, net};
 
 use crate::{
     constants,
+    server::{
+        builder::{ServerBuilder, ServerBuilderError},
+        config::ServerConfig,
+    },
     types::{options::DhcpMessageType, Message},
 };
 
 mod builder;
+mod config;
 mod storage;
 
 pub struct Session {
@@ -19,20 +24,28 @@ pub struct Session {
 
 #[derive(Debug, Error)]
 pub enum ServerError {
-    #[error("Server is already running")]
+    #[error("server is already running, aborting")]
     AlreadyRunning,
 
-    #[error("IO error: {0}")]
+    #[error("server builder error: {0}")]
+    ServerBuilderError(#[from] ServerBuilderError),
+
+    #[error("io error: {0}")]
     Io(#[from] std::io::Error),
 }
 
 pub struct Server {
+    config: ServerConfig,
     is_running: bool,
 }
 
 impl Server {
-    pub fn new() -> Self {
-        Self { is_running: false }
+    pub fn new() -> Result<Self, ServerError> {
+        Ok(Self::builder().build()?)
+    }
+
+    pub fn builder() -> ServerBuilder {
+        ServerBuilder::new()
     }
 
     #[tokio::main]

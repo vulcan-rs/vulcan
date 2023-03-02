@@ -19,6 +19,7 @@ struct Cli {
     verbose: bool,
 }
 
+// TODO (Techassi): Add anyhow
 fn main() {
     let cli = Cli::parse();
 
@@ -30,7 +31,17 @@ fn main() {
         }
     };
 
-    let mut srv = Server::new();
+    let mut srv = match Server::builder()
+        .with_rebind_time(cfg.rebinding_time)
+        .with_renew_time(cfg.renewal_time)
+        .build()
+    {
+        Ok(cfg) => cfg,
+        Err(err) => {
+            println!("{}", err);
+            exit(1)
+        }
+    };
 
     if let Err(err) = srv.run() {
         println!("{}", err);

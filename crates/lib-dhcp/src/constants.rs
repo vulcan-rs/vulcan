@@ -13,3 +13,6 @@ pub const HARDWARE_ADDR_TYPE_ETHERNET: u8 = 1;
 pub const HARDWARE_ADDR_LEN_ETHERNET: u8 = 6;
 
 pub const ONE_HOUR_SECS: u32 = 3600;
+
+pub const DEFAULT_REBIND_PERCENT: f64 = 0.875;
+pub const DEFAULT_RENEW_PERCENT: f64 = 0.5;
