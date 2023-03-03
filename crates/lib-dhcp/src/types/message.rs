@@ -22,8 +22,11 @@ pub enum MessageError {
     #[error("Buffer error: {0}")]
     BufferError(#[from] BufferError),
 
-    #[error("Option with tag {0} already ppresent, duplicates are not allowed")]
+    #[error("Option with tag {0} already present, duplicates are not allowed")]
     DuplicateOptionError(OptionTag),
+
+    #[error("No DHCP magic cookie found at the start of OPTIONS field")]
+    NoMagicCookie,
 }
 
 /// [`Message`] describes a complete DHCP message. The same packet field
@@ -142,8 +145,8 @@ impl Readable for Message {
 
         match buf.peekn::<4>() {
             Some(m) if m == constants::MAGIC_COOKIE_ARR => buf.skipn(4)?,
-            Some(_) => return Err(MessageError::BufferError(BufferError::InvalidData)),
-            None => return Err(MessageError::BufferError(BufferError::BufTooShort)),
+            Some(_) => return Err(MessageError::NoMagicCookie),
+            None => return Err(BufferError::BufTooShort.into()),
         };
 
         let options = read_options::<E>(buf)?;

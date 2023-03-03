@@ -34,18 +34,18 @@ pub enum OptionData {
     Pad,
     End,
     SubnetMask(Ipv4Addr),
-    TimeOffset,
+    TimeOffset(u32),
     Router(Vec<Ipv4Addr>),
-    TimeServer,
-    NameServer,
+    TimeServer(Vec<Ipv4Addr>),
+    NameServer(Vec<Ipv4Addr>),
     DomainNameServer(Vec<Ipv4Addr>),
-    LogServer,
-    CookieServer,
-    LprServer,
-    ImpressServer,
-    ResourceLocationServer,
+    LogServer(Vec<Ipv4Addr>),
+    CookieServer(Vec<Ipv4Addr>),
+    LprServer(Vec<Ipv4Addr>),
+    ImpressServer(Vec<Ipv4Addr>),
+    ResourceLocationServer(Vec<Ipv4Addr>),
     HostName(String),
-    BootFileSize,
+    BootFileSize(u16),
     MeritDumpFile,
     DomainName,
     SwapServer,
@@ -166,18 +166,18 @@ impl Writeable for OptionData {
             OptionData::Pad => 0u8.write::<E>(buf)?,
             OptionData::End => 255u8.write::<E>(buf)?,
             OptionData::SubnetMask(mask) => mask.write::<E>(buf)?,
-            OptionData::TimeOffset => todo!(),
+            OptionData::TimeOffset(off) => off.write::<E>(buf)?,
             OptionData::Router(ips) => ips.write::<E>(buf)?,
-            OptionData::TimeServer => todo!(),
-            OptionData::NameServer => todo!(),
+            OptionData::TimeServer(ips) => ips.write::<E>(buf)?,
+            OptionData::NameServer(ips) => ips.write::<E>(buf)?,
             OptionData::DomainNameServer(ips) => ips.write::<E>(buf)?,
-            OptionData::LogServer => todo!(),
-            OptionData::CookieServer => todo!(),
-            OptionData::LprServer => todo!(),
-            OptionData::ImpressServer => todo!(),
-            OptionData::ResourceLocationServer => todo!(),
+            OptionData::LogServer(ips) => ips.write::<E>(buf)?,
+            OptionData::CookieServer(ips) => ips.write::<E>(buf)?,
+            OptionData::LprServer(ips) => ips.write::<E>(buf)?,
+            OptionData::ImpressServer(ips) => ips.write::<E>(buf)?,
+            OptionData::ResourceLocationServer(ips) => ips.write::<E>(buf)?,
             OptionData::HostName(name) => name.write::<E>(buf)?,
-            OptionData::BootFileSize => todo!(),
+            OptionData::BootFileSize(size) => size.write::<E>(buf)?,
             OptionData::MeritDumpFile => todo!(),
             OptionData::DomainName => todo!(),
             OptionData::SwapServer => todo!(),
@@ -241,39 +241,39 @@ impl OptionData {
             OptionTag::Pad => Self::Pad,
             OptionTag::End => Self::End,
             OptionTag::SubnetMask => Self::SubnetMask(Ipv4Addr::read::<E>(buf)?),
-            OptionTag::TimeOffset => todo!(),
+            OptionTag::TimeOffset => Self::TimeOffset(u32::read::<E>(buf)?),
             OptionTag::Router => {
-                if header.len % 4 != 0 {
-                    return Err(OptionDataError::InvalidData);
-                }
-
-                let mut ips = Vec::new();
-
-                for _ in 0..header.len / 4 {
-                    ips.push(Ipv4Addr::read::<E>(buf)?);
-                }
-
+                let ips = read_ip_addrs_set::<E>(buf, header.len)?;
                 Self::Router(ips)
             }
-            OptionTag::TimeServer => todo!(),
-            OptionTag::NameServer => todo!(),
+            OptionTag::TimeServer => {
+                let ips = read_ip_addrs_set::<E>(buf, header.len)?;
+                Self::TimeServer(ips)
+            }
+            OptionTag::NameServer => {
+                let ips = read_ip_addrs_set::<E>(buf, header.len)?;
+                Self::NameServer(ips)
+            }
             OptionTag::DomainNameServer => {
-                if header.len % 4 != 0 {
-                    return Err(OptionDataError::InvalidData);
-                }
-
-                let mut ips = Vec::new();
-
-                for _ in 0..header.len / 4 {
-                    ips.push(Ipv4Addr::read::<E>(buf)?);
-                }
-
+                let ips = read_ip_addrs_set::<E>(buf, header.len)?;
                 Self::DomainNameServer(ips)
             }
-            OptionTag::LogServer => todo!(),
-            OptionTag::CookieServer => todo!(),
-            OptionTag::LprServer => todo!(),
-            OptionTag::ImpressServer => todo!(),
+            OptionTag::LogServer => {
+                let ips = read_ip_addrs_set::<E>(buf, header.len)?;
+                Self::LogServer(ips)
+            }
+            OptionTag::CookieServer => {
+                let ips = read_ip_addrs_set::<E>(buf, header.len)?;
+                Self::CookieServer(ips)
+            }
+            OptionTag::LprServer => {
+                let ips = read_ip_addrs_set::<E>(buf, header.len)?;
+                Self::LprServer(ips)
+            }
+            OptionTag::ImpressServer => {
+                let ips = read_ip_addrs_set::<E>(buf, header.len)?;
+                Self::ImpressServer(ips)
+            }
             OptionTag::ResourceLocationServer => todo!(),
             OptionTag::HostName => {
                 let b = buf.read_vec(header.len as usize)?;
@@ -349,23 +349,23 @@ impl OptionData {
         Ok(option_data)
     }
 
-    pub fn len(&self) -> u8 {
+    pub fn size(&self) -> u8 {
         match self {
             OptionData::Pad => 1,
             OptionData::End => 1,
             OptionData::SubnetMask(_) => 4,
-            OptionData::TimeOffset => 4,
-            OptionData::Router(ips) => ips.len() as u8,
-            OptionData::TimeServer => todo!(),
-            OptionData::NameServer => todo!(),
-            OptionData::DomainNameServer(ips) => ips.len() as u8,
-            OptionData::LogServer => todo!(),
-            OptionData::CookieServer => todo!(),
-            OptionData::LprServer => todo!(),
-            OptionData::ImpressServer => todo!(),
-            OptionData::ResourceLocationServer => todo!(),
+            OptionData::TimeOffset(_) => 4,
+            OptionData::Router(ips) => (ips.len() * 4) as u8,
+            OptionData::TimeServer(ips) => (ips.len() * 4) as u8,
+            OptionData::NameServer(ips) => (ips.len() * 4) as u8,
+            OptionData::DomainNameServer(ips) => (ips.len() * 4) as u8,
+            OptionData::LogServer(ips) => (ips.len() * 4) as u8,
+            OptionData::CookieServer(ips) => (ips.len() * 4) as u8,
+            OptionData::LprServer(ips) => (ips.len() * 4) as u8,
+            OptionData::ImpressServer(ips) => (ips.len() * 4) as u8,
+            OptionData::ResourceLocationServer(ips) => (ips.len() * 4) as u8,
             OptionData::HostName(h) => h.len() as u8,
-            OptionData::BootFileSize => 2,
+            OptionData::BootFileSize(_) => 2,
             OptionData::MeritDumpFile => todo!(),
             OptionData::DomainName => todo!(),
             OptionData::SwapServer => todo!(),
@@ -416,4 +416,23 @@ impl OptionData {
             OptionData::ClientIdentifier(_) => todo!(),
         }
     }
+}
+
+/// Reads a set of IPv4 addresses. This function ensures that the provided
+/// length is at least 4 and a multiple of 4.
+fn read_ip_addrs_set<E: Endianness>(
+    buf: &mut ReadBuffer,
+    len: u8,
+) -> Result<Vec<Ipv4Addr>, OptionDataError> {
+    if len < 4 || len % 4 != 0 {
+        return Err(OptionDataError::InvalidData);
+    }
+
+    let mut ips = Vec::new();
+
+    for _ in 0..len / 4 {
+        ips.push(Ipv4Addr::read::<E>(buf)?);
+    }
+
+    Ok(ips)
 }
