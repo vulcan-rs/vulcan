@@ -3,4 +3,4 @@ rebinding_time = 2000
 
 [storage]
 type = "file"
-path = "/etc/vulcan-dhcpd/dhcp.leases"
+path = "/etc/vulcan/dhcp.leases"
