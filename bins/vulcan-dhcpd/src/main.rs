@@ -1,5 +1,6 @@
-use std::{path::PathBuf, process::exit};
+use std::path::PathBuf;
 
+use anyhow::Result;
 use clap::Parser;
 use dhcp::Server;
 
@@ -11,40 +12,28 @@ mod constants;
 #[derive(Parser)]
 struct Cli {
     /// Sets a custom config file
-    #[arg(short, long, value_name = "FILE")]
-    config: Option<PathBuf>,
+    #[arg(
+        short,
+        long,
+        value_name = "FILE",
+        default_value = "/etc/vulcan/dhcpd.toml"
+    )]
+    config: PathBuf,
 
     /// Enables verbose output on STDOUT
     #[arg(short, long)]
     verbose: bool,
 }
 
-// TODO (Techassi): Add anyhow
-fn main() {
+fn main() -> Result<()> {
     let cli = Cli::parse();
 
-    let cfg = match Config::read(cli.config) {
-        Ok(cfg) => cfg,
-        Err(err) => {
-            println!("{}", err);
-            exit(1)
-        }
-    };
+    let cfg = Config::from_file(cli.config)?;
 
-    let mut srv = match Server::builder()
-        .with_rebind_time(cfg.rebinding_time)
-        .with_renew_time(cfg.renewal_time)
-        .build()
-    {
-        Ok(cfg) => cfg,
-        Err(err) => {
-            println!("{}", err);
-            exit(1)
-        }
-    };
+    let mut srv = Server::builder()
+        .with_rebind_time(cfg.rebind_time)
+        .with_renew_time(cfg.renew_time)
+        .build()?;
 
-    if let Err(err) = srv.run() {
-        println!("{}", err);
-        exit(1)
-    }
+    Ok(srv.run()?)
 }
