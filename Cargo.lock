@@ -267,6 +267,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fad582f4b9e86b6caa621cabeb0963332d92eea04729ab12892c2533951e6440"
 
 [[package]]
+name = "lib-core"
+version = "0.0.1"
+
+[[package]]
+name = "lib-nft"
+version = "0.1.0"
+
+[[package]]
 name = "libc"
 version = "0.2.139"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -742,6 +750,7 @@ dependencies = [
 name = "vulcan-dhcpc"
 version = "0.0.1"
 dependencies = [
+ "anyhow",
  "clap",
  "dhcp",
  "serde",
@@ -754,6 +763,7 @@ dependencies = [
 name = "vulcan-dhcpd"
 version = "0.0.1"
 dependencies = [
+ "anyhow",
  "clap",
  "dhcp",
  "serde",
