@@ -1,6 +1,14 @@
-renewal_time = 1000
-rebinding_time = 2000
+[server]
+interface = "eth0"
+write_timeout = 2
+bind_timeout = 2
+read_timeout = 2
+
+[dhcp]
+rebind_time = 2000
+renew_time = 1000
+lease_time = 3600
 
 [storage]
-type = "file"
 path = "/etc/vulcan/dhcp.leases"
+type = "file"

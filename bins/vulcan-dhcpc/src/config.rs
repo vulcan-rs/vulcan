@@ -26,31 +26,6 @@ pub struct RawConfig {
     read_timeout: u64,
 }
 
-impl RawConfig {
-    pub fn from_file(path: PathBuf) -> Result<Self, ConfigError> {
-        let b = match fs::read_to_string(path) {
-            Ok(b) => b,
-            Err(err) => return Err(ConfigError::Read(err)),
-        };
-
-        let c: Self = match toml::from_str(&b) {
-            Ok(c) => c,
-            Err(err) => return Err(ConfigError::Deserialize(err)),
-        };
-
-        Ok(c)
-    }
-
-    pub fn validate(&self) -> Result<Config, ConfigError> {
-        Ok(Config {
-            interface: self.interface.clone(),
-            write_timeout: Duration::from_secs(self.write_timeout),
-            bind_timeout: Duration::from_secs(self.bind_timeout),
-            read_timeout: Duration::from_secs(self.read_timeout),
-        })
-    }
-}
-
 pub struct Config {
     pub interface: String,
     pub write_timeout: time::Duration,
@@ -58,9 +33,24 @@ pub struct Config {
     pub read_timeout: time::Duration,
 }
 
+impl TryFrom<RawConfig> for Config {
+    type Error = ConfigError;
+
+    fn try_from(value: RawConfig) -> Result<Self, Self::Error> {
+        Ok(Self {
+            write_timeout: Duration::from_secs(value.write_timeout),
+            bind_timeout: Duration::from_secs(value.bind_timeout),
+            read_timeout: Duration::from_secs(value.read_timeout),
+            interface: value.interface,
+        })
+    }
+}
+
 impl Config {
     pub fn from_file(path: PathBuf) -> Result<Self, ConfigError> {
-        let raw_config = RawConfig::from_file(path)?;
-        raw_config.validate()
+        let b = fs::read_to_string(path)?;
+        let c: RawConfig = toml::from_str(&b)?;
+
+        Self::try_from(c)
     }
 }
