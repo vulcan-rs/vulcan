@@ -225,7 +225,7 @@ impl Writeable for OptionData {
             OptionData::RenewalT1Time(time) => time.write::<E>(buf)?,
             OptionData::RebindingT2Time(time) => time.write::<E>(buf)?,
             OptionData::ClassIdentifier(_) => todo!(),
-            OptionData::ClientIdentifier(_) => todo!(),
+            OptionData::ClientIdentifier(c) => c.write::<E>(buf)?,
         };
 
         Ok(n)
@@ -413,7 +413,7 @@ impl OptionData {
             OptionData::RenewalT1Time(_) => 4,
             OptionData::RebindingT2Time(_) => 4,
             OptionData::ClassIdentifier(_) => todo!(),
-            OptionData::ClientIdentifier(_) => todo!(),
+            OptionData::ClientIdentifier(c) => c.len() as u8,
         }
     }
 }
