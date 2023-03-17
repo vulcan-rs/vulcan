@@ -1,29 +1,44 @@
-use crate::{types::Lease, IntoLease, Storage, StorageError, StorageResult};
+use async_trait::async_trait;
 
+use crate::{types::Lease, IntoLease, Storage, StorageError};
+
+#[derive(Debug, Default)]
 pub struct ClientStorage {
     leases: Vec<Lease>,
 }
 
-impl Storage for ClientStorage {
-    type Key = usize;
+// #[async_trait]
+// impl Storage for ClientStorage {
+//     type Error = StorageError;
+//     type Key = usize;
 
-    fn retrieve_lease(&self, key: Self::Key) -> StorageResult<&Lease> {
-        match self.leases.get(key) {
-            Some(lease) => Ok(lease),
-            None => Err(StorageError::RetrieveError),
-        }
-    }
+//     async fn retrieve_lease(&self, key: Self::Key) -> Result<&Lease, Self::Error> {
+//         match self.leases.get(key) {
+//             Some(lease) => Ok(lease),
+//             None => Err(StorageError::RetrieveError),
+//         }
+//     }
 
-    fn store_lease<L: IntoLease>(&mut self, key: Self::Key, lease: L) -> StorageResult<()> {
-        if key >= self.len() {
-            return Err(StorageError::StoreError);
-        }
+//     async fn store_lease<L: IntoLease>(
+//         &mut self,
+//         key: Self::Key,
+//         lease: L,
+//     ) -> Result<(), Self::Error> {
+//         if key >= self.len() {
+//             return Err(StorageError::StoreError);
+//         }
 
-        self.leases.push(lease.into_lease());
-        Ok(())
-    }
+//         self.leases.push(lease.into_lease());
+//         Ok(())
+//     }
 
-    fn len(&self) -> usize {
-        self.leases.len()
+//     fn len(&self) -> usize {
+//         self.leases.len()
+//     }
+// }
+
+impl ClientStorage {
+    pub fn new() -> Self {
+        ClientStorage::default()
     }
 }

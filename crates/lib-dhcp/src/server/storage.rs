@@ -74,8 +74,8 @@ impl Storage for ServerStorage {
         let key = key.to_string();
         let leases = self.leases.lock().unwrap();
 
-        leases.get(&key)
-        // None
+        // leases.get(&key)
+        None
     }
 
     async fn store_lease<L: IntoLease>(

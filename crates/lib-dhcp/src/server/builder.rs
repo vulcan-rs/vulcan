@@ -117,7 +117,7 @@ impl ServerBuilder {
         }
 
         // Parse the pools
-        let pools = Vec::new();
+        // let pools = Vec::new();
 
         Ok(Server {
             is_running: false,
