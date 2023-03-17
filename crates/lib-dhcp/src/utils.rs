@@ -52,6 +52,7 @@ pub fn select_network_interface(
     let interfaces = NetworkInterface::show()?;
 
     for interface in interfaces {
+        println!("{interface:?}");
         // Return immediately when we found the interface with the
         // user-provided name
         if interface.name == *name {

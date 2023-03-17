@@ -5,6 +5,7 @@ use crate::types::{
     DhcpOption, HardwareAddr, Message, MessageError, OptionData, OptionTag,
 };
 
+#[derive(Debug)]
 pub struct MessageBuilder {
     client_hardware_addr: HardwareAddr,
     client_identifier: Option<Vec<u8>>,

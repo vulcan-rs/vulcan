@@ -10,6 +10,7 @@ use tokio::{
     net::{ToSocketAddrs, UdpSocket},
     time::{sleep, timeout},
 };
+use tracing::{debug, error, info, instrument};
 
 use crate::{
     builder::MessageBuilder,
@@ -134,6 +135,7 @@ impl ClientBuilder {
 
 // TODO (Techassi): The T1 and T2 timers a implemented slightly wrong. See 4.4.5
 
+#[derive(Debug)]
 pub struct Client {
     /// Duration before the binding process of the socket times out.
     bind_timeout: time::Duration,
@@ -172,14 +174,17 @@ impl Client {
     }
 
     /// Run the client as a daemon
-    #[tokio::main]
+    #[instrument]
     pub async fn run(&mut self) -> Result<(), ClientError> {
+        info!(interface = self.interface.name, "binding to udp socket");
+
         // Create UDP socket with a bind timeout
         let socket = create_sock_with_timeout("0.0.0.0:68", self.bind_timeout).await?;
         socket.bind_device(Some(self.interface.name.as_bytes()))?;
         socket.set_broadcast(true)?;
 
         // Ensure the interface is UP
+        debug!("setting interface to up");
         cmd::set_interface_up(&self.interface.name)?;
 
         // We use a state machine to keep track of the client state.
@@ -188,6 +193,7 @@ impl Client {
         // NOTE (Techassi): Maaaaan I really want to remove the multiple awaits and just
         //                  single one at the end of the match expression, but this
         //                  doesn't work for whatever reason...
+        debug!("entering state machine loop");
         loop {
             match self.dhcp_state {
                 DhcpState::Init => self.handle_init().await?,
@@ -207,11 +213,13 @@ impl Client {
     }
 
     /// Handle the DHCP state INIT
+    #[instrument]
     async fn handle_init(&mut self) -> Result<(), ClientError> {
-        println!("Entering state INIT");
+        debug!(state = "INIT", "entering dhcp state INIT");
+
         // Wait a random amount between one and ten seconds
         let wait_duration = Duration::from_secs(rand::thread_rng().gen_range(1..=10));
-        println!(
+        debug!(
             "Waiting for {:?} to send DHCPDISCOVER message",
             wait_duration
         );
@@ -226,11 +234,12 @@ impl Client {
     }
 
     /// Handle the DHCP state SELECTING
+    #[instrument]
     async fn handle_selecting(&mut self, socket: &UdpSocket) -> Result<(), ClientError> {
-        println!("Entering state SELECTING");
+        debug!(state = "SELECTING", "entering dhcp state SELECTING");
 
         // Send DHCPDISCOVER message
-        println!("Sending DHCPDISCOVER message");
+        debug!("sending DHCPDISCOVER message");
         let discover_message = self.builder.make_discover_message(
             self.get_xid(),
             self.destination_addr(),
@@ -243,8 +252,13 @@ impl Client {
         Ok(self.transition_to(DhcpState::SelectingSent)?)
     }
 
+    #[instrument]
     async fn handle_selecting_sent(&mut self, socket: &UdpSocket) -> Result<(), ClientError> {
-        println!("Entering state SELECTING-SENT");
+        debug!(
+            state = "SELECTING-SENT",
+            "entering dhcp state SELECTING-SENT"
+        );
+
         // Collect replies (DHCPOFFER)
         // TODO (Techassi): Scale the timeout duration over time
         let (message, _addr) =
@@ -262,8 +276,8 @@ impl Client {
 
         // Check if the transaction ID matches
         if !message.valid_xid(self.get_xid()) {
-            println!(
-                "Received response with wrong transaction ID: {} (yours: {})",
+            error!(
+                "received response with wrong transaction ID: {} (yours: {})",
                 message.header.xid,
                 self.get_xid()
             );
@@ -272,7 +286,7 @@ impl Client {
 
         // Check if the DHCP message type is correct
         if !message.valid_message_type(DhcpMessageType::Offer) {
-            println!("Received response with no DHCP message type option set");
+            error!("received response with no DHCP message type option set");
             return Ok(());
         }
 
@@ -301,15 +315,17 @@ impl Client {
         Ok(self.transition_to(DhcpState::Requesting)?)
     }
 
+    #[instrument]
     async fn handle_rebooting(&mut self) -> Result<(), ClientError> {
         Ok(())
     }
 
+    #[instrument]
     async fn handle_requesting(&mut self, socket: &UdpSocket) -> Result<(), ClientError> {
-        println!("Entering REQUESTING");
+        debug!(state = "REQUESTING", "entering dhcp state REQUESTING");
 
         // Send DHCPREQUEST message
-        println!("Sending DHCPREQUEST message");
+        debug!("sending DHCPREQUEST message");
         let request_message = self.builder.make_request_message(
             self.get_xid(),
             self.destination_addr(),
@@ -321,8 +337,12 @@ impl Client {
         Ok(self.transition_to(DhcpState::RequestingSent)?)
     }
 
+    #[instrument]
     async fn handle_requesting_sent(&mut self, socket: &UdpSocket) -> Result<(), ClientError> {
-        println!("Entering REQUESTING-SENT");
+        debug!(
+            state = "REQUESTING-SENT",
+            "entering dhcp state REQUESTING-SENT"
+        );
         // Discard other DHCPOFFER
 
         // We should get a DHCPACK or DHCPNAK message
@@ -342,7 +362,7 @@ impl Client {
 
         // Check if the transaction ID matches
         if !message.valid_xid(self.get_xid()) {
-            println!(
+            error!(
                 "Received response with wrong transaction ID: {} (yours: {})",
                 message.header.xid,
                 self.get_xid()
@@ -376,7 +396,7 @@ impl Client {
                 .unwrap_or((self.client_state.offered_lease_time.unwrap() as f64 * 0.875) as u32),
         );
 
-        println!(
+        info!(
             "ip -4 addr add {} dev {}",
             self.client_state.offered_ip_address.unwrap(),
             self.interface.name
@@ -390,14 +410,15 @@ impl Client {
         Ok(self.transition_to(DhcpState::Bound)?)
     }
 
+    #[instrument]
     async fn handle_rebinding(&mut self, socket: &UdpSocket) -> Result<(), ClientError> {
-        println!("Entering REBINDING");
+        debug!(state = "REBINDING", "entering dhcp state REBINDING");
 
         // Reset the server identifier (IP address). The message will be
         // send using the broadcast address.
         self.client_state.server_identifier = None;
 
-        println!("Sending DHCPREQUEST");
+        debug!("sending DHCPREQUEST message");
         let request_message = self.builder.make_renewing_message(
             self.get_xid(),
             self.client_state.offered_ip_address.unwrap(),
@@ -408,8 +429,12 @@ impl Client {
         Ok(self.transition_to(DhcpState::RebindingSent)?)
     }
 
+    #[instrument]
     async fn handle_rebinding_sent(&mut self, socket: &UdpSocket) -> Result<(), ClientError> {
-        println!("Entering REBINDING-SENT");
+        debug!(
+            state = "REBINDING-SENT",
+            "entering dhcp state REBINDING-SENT"
+        );
 
         let (message, _addr) = match self.recv_message(socket).await? {
             Some(result) => result,
@@ -437,7 +462,7 @@ impl Client {
 
         // Check if the transaction ID matches
         if !message.valid_xid(self.get_xid()) {
-            println!(
+            error!(
                 "Received response with wrong transaction ID: {} (yours: {})",
                 message.header.xid,
                 self.get_xid()
@@ -470,7 +495,7 @@ impl Client {
                 .unwrap_or((self.client_state.offered_lease_time.unwrap() as f64 * 0.875) as u32),
         );
 
-        println!(
+        debug!(
             "ip -4 addr add {} dev {}",
             self.client_state.offered_ip_address.unwrap(),
             self.interface.name
@@ -484,13 +509,14 @@ impl Client {
     }
 
     /// Handle the DHCP state BOUND.
+    #[instrument]
     async fn handle_bound(&mut self) -> Result<(), ClientError> {
-        println!("Entering BOUND");
+        debug!(state = "BOUND", "entering dhcp state BOUND");
         // Remain in this state. Discard incoming
         // DHCPOFFER, DHCPACK and DHCPNAK
 
         // T1 expires, send DHCPREQUEST to leasing server
-        println!("Waiting for T1 to expire, then sending DHCPREQUEST");
+        debug!("Waiting for T1 to expire, then sending DHCPREQUEST");
         match &self.client_state.renewal_time {
             Some(time) => sleep(Duration::from_secs(*time as u64)).await,
             None => {
@@ -510,12 +536,13 @@ impl Client {
     /// RFC 2131, but this implementation introduces this state to be able to
     /// return back to here in case the T1 timer ticks which should trigger a
     /// retransmission of the DHCPREQUEST message.
+    #[instrument]
     async fn handle_renewing(&mut self, socket: &UdpSocket) -> Result<(), ClientError> {
-        println!("Entering RENEWING");
-        println!("Renewing XID");
+        debug!(state = "RENEWING", "entering dhcp state RENEWING");
+        debug!("renewing XID");
         self.renew_xid();
 
-        println!("Sending DHCPREQUEST");
+        debug!("Sending DHCPREQUEST message");
         let request_message = self.builder.make_renewing_message(
             self.get_xid(),
             self.client_state.offered_ip_address.unwrap(),
@@ -529,8 +556,9 @@ impl Client {
     /// Handle the intermediate state RENEWINGSENT. This method listens for
     /// incoming messages after sending out a DHCPREQUEST message to renew the
     /// lease. If
+    #[instrument]
     async fn handle_renewing_sent(&mut self, socket: &UdpSocket) -> Result<(), ClientError> {
-        println!("Entering RENEWING-SENT");
+        debug!(state = "RENEWING-SENT", "entering dhcp state RENEWING-SENT");
 
         let (message, _addr) = match self.recv_message(socket).await? {
             Some(result) => result,
@@ -558,7 +586,7 @@ impl Client {
 
         // Check if the transaction ID matches
         if !message.valid_xid(self.get_xid()) {
-            println!(
+            error!(
                 "Received response with wrong transaction ID: {} (yours: {})",
                 message.header.xid,
                 self.get_xid()
@@ -593,7 +621,7 @@ impl Client {
                 .unwrap_or((self.client_state.offered_lease_time.unwrap() as f64 * 0.875) as u32),
         );
 
-        println!(
+        debug!(
             "ip -4 addr add {} dev {}",
             self.client_state.offered_ip_address.unwrap(),
             self.interface.name
@@ -637,6 +665,7 @@ impl Client {
     ///
     /// If the function returns Ok(None), `readable` produced a false
     /// positive and we catched a `WouldBlock` error.
+    #[instrument]
     async fn recv_message(
         &self,
         sock: &UdpSocket,
@@ -665,6 +694,7 @@ impl Client {
     /// Send a DHCP message / packet with the default timeouts to `dest_addr`
     /// by binding to `bind_addr`. The bind address is usually `0.0.0.0:68`.
     /// The default timeouts can be adjusted by using [`Client::builder`]
+    #[instrument]
     async fn send_message(&self, message: Message, socket: &UdpSocket) -> Result<(), ClientError> {
         // Choose a destion IP address. This is either the broadcast address
         // or the DHCP server address.
