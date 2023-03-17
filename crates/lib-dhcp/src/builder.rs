@@ -29,7 +29,7 @@ impl MessageBuilder {
     pub fn make_discover_message(
         &mut self,
         xid: u32,
-        destination_addr: Option<Ipv4Addr>,
+        destination_addr: Ipv4Addr,
         requested_client_addr: Option<Ipv4Addr>,
         requested_lease_time: Option<u32>,
     ) -> Result<Message, MessageError> {
@@ -44,15 +44,12 @@ impl MessageBuilder {
             OptionData::DhcpMessageType(DhcpMessageType::Discover),
         )?;
 
-        let destination = match destination_addr {
-            Some(ip) => ip,
-            None => Ipv4Addr::BROADCAST,
-        };
-
-        message.add_option_parts(
-            OptionTag::ServerIdentifier,
-            OptionData::ServerIdentifier(destination),
-        )?;
+        if destination_addr != Ipv4Addr::BROADCAST {
+            message.add_option_parts(
+                OptionTag::ServerIdentifier,
+                OptionData::ServerIdentifier(destination_addr),
+            )?;
+        }
 
         // The client MAY suggest a network address and/or lease time by
         // including the 'requested IP address' and 'IP address lease time'
