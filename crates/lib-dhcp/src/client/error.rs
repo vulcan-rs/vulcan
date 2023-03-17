@@ -19,8 +19,8 @@ pub enum ClientError {
     #[error("Failed to retrieve interfaces: {0}")]
     InterfaceError(#[from] InterfaceError),
 
-    #[error("Failed to select a network interface")]
-    NoInterfaceFound,
+    #[error("Failed to select a network interface: {0}")]
+    NoInterfaceFound(String),
 
     #[error("Parse hardware address error: {0}")]
     ParseHardwareAddrError(#[from] ParseHardwareAddrError),

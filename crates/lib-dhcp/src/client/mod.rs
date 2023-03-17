@@ -70,7 +70,7 @@ impl ClientBuilder {
         let interface =
             match utils::select_network_interface(&self.interface, self.interface_fallback)? {
                 Some(ifa) => ifa,
-                None => return Err(ClientError::NoInterfaceFound),
+                None => return Err(ClientError::NoInterfaceFound(self.interface)),
             };
 
         let hardware_address = match &interface.mac_addr {
@@ -131,6 +131,8 @@ impl ClientBuilder {
         self
     }
 }
+
+// TODO (Techassi): The T1 and T2 timers a implemented slightly wrong. See 4.4.5
 
 pub struct Client {
     /// Duration before the binding process of the socket times out.
@@ -231,7 +233,7 @@ impl Client {
         println!("Sending DHCPDISCOVER message");
         let discover_message = self.builder.make_discover_message(
             self.get_xid(),
-            Some(self.destination_addr()),
+            self.destination_addr(),
             None,
             None,
         )?;
@@ -601,7 +603,7 @@ impl Client {
             &self.interface.name,
         )?;
 
-        Ok(())
+        Ok(self.transition_to(DhcpState::Bound)?)
     }
 
     /// Returns the current transaction ID.
