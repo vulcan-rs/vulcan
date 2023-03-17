@@ -51,6 +51,8 @@ pub fn select_network_interface(
 ) -> Result<Option<NetworkInterface>, InterfaceError> {
     let interfaces = NetworkInterface::show()?;
 
+    println!("Found {} interfaces", interfaces.len());
+
     for interface in interfaces {
         println!("{interface:?}");
         // Return immediately when we found the interface with the
